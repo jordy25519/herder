@@ -1,0 +1,55 @@
+#!/bin/ruby
+
+# Build herd
+# herder -b count image_name herd_name
+
+# Run mass command over herd.
+# herder -h herd_name "start/stop/any docker command"
+
+def interperet()
+	cmd = ARGV[0]
+	case (cmd)
+		when '-b'
+			build()
+		when '-h'
+			# Pass the herd name.
+			run(ARGV[1])
+		when '--clean'
+			# Clean all containers
+			clean()
+		else
+			puts "Command: \"#{cmd}\" is unrecognized."
+	end
+	
+end
+
+def build()
+	n = ARGV[1].to_i
+	image = ARGV[2].to_s
+	herd_name = ARGV[3].to_s
+	args = "docker create"
+	
+	(1..n).each do |d|
+		docker_cmd = args + " --name #{herd_name}#{d} #{image}"
+		puts docker_cmd
+		`#{docker_cmd}`
+	end
+
+end
+
+def clean
+ exec("docker rm `docker ps --no-trunc -aq`")
+end
+
+def run(herd_name)
+
+	# get herd from map. h = herds[herd_name]
+	# for each container in herd
+	# 	run the command
+	# end
+
+end
+
+# Run the script.
+puts "&&&Herder..."
+interperet()
