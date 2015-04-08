@@ -6,6 +6,8 @@
 # Run mass command over herd.
 # herder -h herd_name "start/stop/any docker command"
 
+@data = Hash.new
+
 def interperet()
 	cmd = ARGV[0]
 	case (cmd)
@@ -24,11 +26,13 @@ def interperet()
 end
 
 def build()
+	puts "Building herd...."
 	n = ARGV[1].to_i
 	image = ARGV[2].to_s
 	herd_name = ARGV[3].to_s
 	args = "docker create"
-	
+	commit("#{herd_name}_size", n)
+
 	(1..n).each do |d|
 		docker_cmd = args + " --name #{herd_name}#{d} #{image}"
 		puts docker_cmd
@@ -38,18 +42,49 @@ def build()
 end
 
 def clean
+ puts "Cleaning herds..."
  exec("docker rm `docker ps --no-trunc -aq`")
 end
 
 def run(herd_name)
-
-	# get herd from map. h = herds[herd_name]
-	# for each container in herd
-	# 	run the command
-	# end
-
+	args = "docker "
+	cmd = args + ARGV.drop(2).join(" ")
+	n = @data["#{herd_name}_size"].to_i
+	
+	(1..n).each do |d|
+		puts "#{cmd} #{herd_name}#{d}"
+		`#{cmd} #{herd_name}#{d}`
+	end
 end
 
+# Write a value to data file for storage.
+def commit(key, value)
+	f = File.open('data.csv', 'a')
+	f.puts("#{key}, #{value}")
+	f.close
+end
+
+# Load data for usage.
+def load_data
+	f = File.open('data.csv', 'r')
+	f.each_line do |line|
+		tokens = line.split(",")
+		@data[tokens[0]] = tokens[1]
+		puts "#{tokens[0]} #{tokens[1]}"
+	end
+	f.close()
+end
+
+
 # Run the script.
-puts "&&&Herder..."
+load_data()
+puts " 
+ ___________
+ < Herder >
+ -----------
+       \\   ^__^
+        \\  (oo)\\_______
+           (__)\\       )\\/\\
+                ||----w |
+                ||     ||"
 interperet()
