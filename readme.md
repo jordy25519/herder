@@ -1,3 +1,5 @@
-Herder
-	- Coordinate groups of docker containers
-	- Benchmarks & Performance analysis
+<h1>Herder</h1>
+<ul>
+<li>Coordinate groups of docker containers</li>
+<li>Benchmarking & Performance analysis</li>
+</ul>
