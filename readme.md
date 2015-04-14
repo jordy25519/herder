@@ -1,1 +1,3 @@
-A set of scripts for coordinating docker containers.
+Herder
+	- Coordinate groups of docker containers
+	- Benchmarks & Performance analysis

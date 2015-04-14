@@ -7,6 +7,7 @@
 # herder -h herd_name "start/stop/any docker command"
 
 @data = Hash.new
+@file = '/home/jordan/projects/herder/data.csv'
 
 def interperet()
 	cmd = ARGV[0]
@@ -14,22 +15,21 @@ def interperet()
 		when '-b'
 			build()
 		when '-h'
-			# Pass the herd name.
-			run(ARGV[1])
+			run()
 		when '--clean'
-			# Clean all containers
 			clean()
 		else
 			puts "Command: \"#{cmd}\" is unrecognized."
 	end
-	
+
 end
 
+# Instantiate a herd of docker containers.
 def build()
 	puts "Building herd...."
 	n = ARGV[1].to_i
-	image = ARGV[2].to_s
-	herd_name = ARGV[3].to_s
+	image = ARGV[2]
+	herd_name = ARGV[3]
 	args = "docker create"
 	commit("#{herd_name}_size", n)
 
@@ -41,32 +41,38 @@ def build()
 
 end
 
+# Clean all docker containers.
 def clean
  puts "Cleaning herds..."
  exec("docker rm `docker ps --no-trunc -aq`")
+ f = File.open(@file, 'w')
+ f.puts("")
+ f.close()
 end
 
-def run(herd_name)
-	args = "docker "
-	cmd = args + ARGV.drop(2).join(" ")
+# Run a command against the herd.
+def run()
+	herd_name = ARGV[1]
+	cmd = "docker " << ARGV[2]
+	args = ARGV.drop(3).join(" ")
 	n = @data["#{herd_name}_size"].to_i
-	
+
 	(1..n).each do |d|
-		puts "#{cmd} #{herd_name}#{d}"
-		`#{cmd} #{herd_name}#{d}`
+		puts "#{cmd} #{herd_name}#{d} #{args}"
+		`#{cmd} #{herd_name}#{d} #{args}`
 	end
 end
 
 # Write a value to data file for storage.
 def commit(key, value)
-	f = File.open('data.csv', 'a')
+	f = File.open(@file, 'a')
 	f.puts("#{key}, #{value}")
 	f.close
 end
 
 # Load data for usage.
 def load_data
-	f = File.open('data.csv', 'r')
+	f = File.open(@file, 'r')
 	f.each_line do |line|
 		tokens = line.split(",")
 		@data[tokens[0]] = tokens[1]
@@ -78,7 +84,7 @@ end
 
 # Run the script.
 load_data()
-puts " 
+puts "
  ___________
  < Herder >
  -----------
