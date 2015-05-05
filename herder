@@ -1,13 +1,15 @@
 #!/bin/ruby
+require 'active_support/inflector'
 
 @data = Hash.new
 @file = 'data.csv'
 
 # Interperet terminal commands.
-def interperet()
+def interperet
 	cmd = ARGV[0]
 	case (cmd)
 		when '-b' then build
+		when '-c' then create
 		when '--clean' then clean
 		when '--help' then help
 		when '-r' then run
@@ -15,20 +17,15 @@ def interperet()
 	end
 end
 
-# Instantiate a herd of docker containers.
-def build()
-	puts "Building herd..."
-	n = ARGV[1].to_i
-	image = ARGV[2]
-	herd_name = ARGV[3]
-	args = "docker create"
-	commit(herd_name, n)
+# Build an image from dockerfile.
+def build
+	image_name = ARGV[1]
+	docker_file_path = ARGV[2]
 
-	(1..n).each do |d|
-		docker_cmd = args + " --name #{herd_name}#{d} #{image}"
-		puts docker_cmd
-		`#{docker_cmd}`
-	end
+	cmd = "docker build --rm=true -t #{image_name} #{docker_file_path}"
+	puts "Building image..."
+	puts cmd
+	`#{cmd}`
 end
 
 # Clean all docker containers.
@@ -38,8 +35,24 @@ def clean
  exec("docker rm `docker ps --no-trunc -aq`")
 end
 
+# Instantiate a herd of docker containers.
+def create
+	image = ARGV[1]
+	n = ARGV[2].to_i
+	herd_name = image.pluralize
+	args = "docker create"
+	commit(herd_name, n)
+
+	puts "Creating herd..."
+	(1..n).each do |d|
+		cmd = args + " --name #{image}#{d} #{image}"
+		puts cmd
+		`#{cmd}`
+	end
+end
+
 # Run a command against the herd.
-def run()
+def run
 	herd_name = ARGV[1]
 	cmd = "docker " << ARGV[2]
 	args = ARGV.drop(3).join(" ")
@@ -61,22 +74,28 @@ def load_data
 	File.open(@file, 'r').each_line do |line|
 		tokens = line.split(",")
 		@data[tokens[0]] = tokens[1]
-		puts "#{tokens[0]} #{tokens[1]}"
-	end
+		puts "Loaded herd: #{tokens[0]}, size: #{tokens[1]}"
+	end if File.exists?(@file)
 end
 
 # Print help commands.
 def help
-	puts "Build a new herd:"
-	puts "  herder -b <count> <image_name> <herd_name>"
+	puts "Build a Dockerfile:"
+	puts "  herder -b <image_name> <path_to_dockerfile>"
 	puts ""
-	puts "Run commands over a herd:"
-  puts "  herder -r <herd_name> <docker command>"
+	puts "Clean all Docker containers:"
+	puts "  herder --clean"
+	puts ""
+	puts "Create a new herd:"
+	puts "  herder -c <image_name> <count>"
+	puts ""
+	puts "Run command over a herd:"
+  puts "  herder -r <herd_name> <docker_command>"
 end
 
 
 # Run the script.
-load_data()
+load_data
 puts "
  ___________
  < Herder >
@@ -86,4 +105,4 @@ puts "
            (__)\\       )\\/\\
                 ||----w |
                 ||     ||"
-interperet()
+interperet
