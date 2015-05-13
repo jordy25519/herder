@@ -3,7 +3,9 @@ require 'active_support/inflector'
 
 # Pipe the following command to the Spark Shell.
 # Output should return 10000.
-#RUN echo "sc.parallelize(1 to 1000).count()" | spark-shell --master yarn-client --driver-memory 1g --executor-memory 1g --executor-cores 1
+# RUN echo "sc.parallelize(1 to 1000).count()" | spark-shell --master yarn-client --driver-memory 1g --executor-memory 1g --executor-cores 1
+# docker images | grep -oE "^(\w|/)+\b"
+
 @data = Hash.new
 @file = 'data.csv'
 
@@ -35,24 +37,27 @@ end
 def clean
  puts "Cleaning herds..."
  File.open(@file, 'w') {}
- exec("docker rm `docker ps --no-trunc -aq`")
+ exec("docker rm -f `docker ps --no-trunc -aq`")
 end
 
 # Instantiate a herd of docker containers.
 def create
 	image = ARGV[1]
-	friendly_name = image.split("/")[1]
 	n = ARGV[2].to_i
+	run_args = ARGV.drop(3).join(" ")
+	
+	friendly_name = /(?<=\/)\w+\b/.match(image).to_s
 	herd_name = friendly_name.pluralize
-	args = "docker create"
-	commit(herd_name, n)
 
 	puts "Creating herd..."
 	(1..n).each do |d|
-		cmd = args + " --name #{friendly_name}#{d} #{image}"
+		cmd = "docker create --restart=always --name #{friendly_name}#{d} #{image} " + run_args
 		puts cmd
 		system "#{cmd}"
 	end
+
+	# Save herd size to file.
+	commit(herd_name, n)
 end
 
 # Run a command against the herd.
@@ -70,7 +75,7 @@ end
 
 # Write a value to data file for storage.
 def commit(key, value)
-	File.open(@file, 'a') { puts "#{key}, #{value}" }
+	File.open(@file, 'a') { |file| file.puts "#{key}, #{value}" }
 end
 
 # Load herd data from file.
@@ -95,6 +100,7 @@ def help
 	puts ""
 	puts "Run command over a herd:"
   puts "  herder -r <herd_name> <docker_command>"
+	puts
 end
 
 
