@@ -1,6 +1,9 @@
 #!/bin/ruby
 require 'active_support/inflector'
 
+# Pipe the following command to the Spark Shell.
+# Output should return 10000.
+#RUN echo "sc.parallelize(1 to 1000).count()" | spark-shell --master yarn-client --driver-memory 1g --executor-memory 1g --executor-cores 1
 @data = Hash.new
 @file = 'data.csv'
 
@@ -11,7 +14,7 @@ def interperet
 		when '-b' then build
 		when '-c' then create
 		when '--clean' then clean
-		when '--help' then help
+		when '--help',nil then help
 		when '-r' then run
 		else puts "Command: \"#{cmd}\" is unrecognized."
 	end
@@ -22,10 +25,10 @@ def build
 	image_name = ARGV[1]
 	docker_file_path = ARGV[2]
 
-	cmd = "docker build --rm=true -t #{image_name} #{docker_file_path}"
+	cmd = "docker build --rm=true --tag=\"#{image_name}\" #{docker_file_path}"
 	puts "Building image..."
 	puts cmd
-	`#{cmd}`
+	system "#{cmd}"
 end
 
 # Clean all docker containers.
@@ -38,29 +41,30 @@ end
 # Instantiate a herd of docker containers.
 def create
 	image = ARGV[1]
+	friendly_name = image.split("/")[1]
 	n = ARGV[2].to_i
-	herd_name = image.pluralize
+	herd_name = friendly_name.pluralize
 	args = "docker create"
 	commit(herd_name, n)
 
 	puts "Creating herd..."
 	(1..n).each do |d|
-		cmd = args + " --name #{image}#{d} #{image}"
+		cmd = args + " --name #{friendly_name}#{d} #{image}"
 		puts cmd
-		`#{cmd}`
+		system "#{cmd}"
 	end
 end
 
 # Run a command against the herd.
 def run
-	herd_name = ARGV[1]
+	herd_name = ARGV[1].singularize
 	cmd = "docker " << ARGV[2]
 	args = ARGV.drop(3).join(" ")
-	n = @data[herd_name].to_i
-
+	n = @data[ARGV[1]].to_i
+ puts args
 	(1..n).each do |d|
 		puts "#{cmd} #{herd_name}#{d} #{args}"
-		`#{cmd} #{herd_name}#{d} #{args}`
+		system "#{cmd} #{herd_name}#{d} #{args}"
 	end
 end
 
@@ -81,13 +85,13 @@ end
 # Print help commands.
 def help
 	puts "Build a Dockerfile:"
-	puts "  herder -b <image_name> <path_to_dockerfile>"
+	puts "  herder -b <repository/image_name> <path_to_dockerfile>"
 	puts ""
 	puts "Clean all Docker containers:"
 	puts "  herder --clean"
 	puts ""
 	puts "Create a new herd:"
-	puts "  herder -c <image_name> <count>"
+	puts "  herder -c <repository/image_name> <count>"
 	puts ""
 	puts "Run command over a herd:"
   puts "  herder -r <herd_name> <docker_command>"
