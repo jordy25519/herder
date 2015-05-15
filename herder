@@ -1,23 +1,20 @@
 #!/bin/ruby
 require 'active_support/inflector'
+require 'yaml'
 
-# Pipe the following command to the Spark Shell.
-# Output should return 10000.
-# RUN echo "sc.parallelize(1 to 1000).count()" | spark-shell --master yarn-client --driver-memory 1g --executor-memory 1g --executor-cores 1
-# docker images | grep -oE "^(\w|/)+\b"
-
-@data = Hash.new
-@file = 'data.csv'
+@herds = Hash.new
+@file = 'data.yaml'
 
 # Interperet terminal commands.
 def interperet
 	cmd = ARGV[0]
 	case (cmd)
-		when '-b' then build
-		when '-c' then create
+		when '-b','--build' then build
+		when '-c','--create' then create
 		when '--clean' then clean
 		when '--help',nil then help
-		when '-r' then run
+		when '-l','--list' then list
+		when '-r','--run' then run
 		else puts "Command: \"#{cmd}\" is unrecognized."
 	end
 end
@@ -29,8 +26,8 @@ def build
 
 	cmd = "docker build --rm=true --tag=\"#{image_name}\" #{docker_file_path}"
 	puts "Building image..."
+	`#{cmd}`
 	puts cmd
-	system "#{cmd}"
 end
 
 # Clean all docker containers.
@@ -43,52 +40,69 @@ end
 # Instantiate a herd of docker containers.
 def create
 	image = ARGV[1]
-	n = ARGV[2].to_i
+	size = ARGV[2].to_i
 	run_args = ARGV.drop(3).join(" ")
 	
-	friendly_name = /(?<=\/)\w+\b/.match(image).to_s
+	# Convert image name to herd name.
+	friendly_name = image
+	friendly_name = /(?<=\/)\w+\b/.match(image).to_s if image.include?("/")
 	herd_name = friendly_name.pluralize
 
-	puts "Creating herd..."
-	(1..n).each do |d|
-		cmd = "docker create --restart=always --name #{friendly_name}#{d} #{image} " + run_args
-		puts cmd
-		system "#{cmd}"
-	end
+	# Create herd data.
+	@herds[herd_name] = Hash["size" => size, "ids" => Array.new]
 
-	# Save herd size to file.
-	commit(herd_name, n)
+	puts "Creating herd..."
+	size.times do |n|
+		cmd = "docker create --restart=always --name #{friendly_name}#{n} #{image} #{run_args}"
+		@herds[herd_name]["ids"][n] = `#{cmd}`
+		puts cmd
+	end
+	commit_data
 end
 
-# Run a command against the herd.
+# Run a command against a herd.
 def run
-	herd_name = ARGV[1].singularize
+	herd_name = ARGV[1]
 	cmd = "docker " << ARGV[2]
 	args = ARGV.drop(3).join(" ")
-	n = @data[ARGV[1]].to_i
- puts args
-	(1..n).each do |d|
-		puts "#{cmd} #{herd_name}#{d} #{args}"
-		system "#{cmd} #{herd_name}#{d} #{args}"
+	
+	unless @herds[herd_name]
+		puts "No herd exists with name: '#{herd_name}'"
+		return
+	end
+
+	@herds[herd_name]["ids"].each do |id|
+	  `#{cmd} #{id} #{args}`
+		puts "#{cmd} #{id} #{args}"
 	end
 end
 
-# Write a value to data file for storage.
-def commit(key, value)
-	File.open(@file, 'a') { |file| file.puts "#{key}, #{value}" }
+# Write herd data to file for persistence.
+def commit_data
+	File.open(@file, 'w') { |file| YAML.dump(@herds, file)  }
 end
 
 # Load herd data from file.
+# If file is blank or missing - intialise new hash instead.
 def load_data
-	File.open(@file, 'r').each_line do |line|
-		tokens = line.split(",")
-		@data[tokens[0]] = tokens[1]
-		puts "Loaded herd: #{tokens[0]}, size: #{tokens[1]}"
-	end if File.exists?(@file)
+	if File.exists?(@file) and not File.zero?(@file)
+		@herds = YAML.load_file("data.yaml") 
+	else
+		@herds = Hash.new
+	end
 end
 
 # Print help commands.
 def help
+	puts "
+ ___________
+ < Herder >
+ -----------
+       \\   ^__^
+        \\  (oo)\\_______
+           (__)\\       )\\/\\
+                ||----w |
+                ||     ||"
 	puts "Build a Dockerfile:"
 	puts "  herder -b <repository/image_name> <path_to_dockerfile>"
 	puts ""
@@ -98,21 +112,23 @@ def help
 	puts "Create a new herd:"
 	puts "  herder -c <repository/image_name> <count>"
 	puts ""
+	puts "List herds:"
+	puts " herder -l"
+	puts ""
 	puts "Run command over a herd:"
   puts "  herder -r <herd_name> <docker_command>"
-	puts
+	puts ""
 end
 
+def list
+	puts "Herds: "	
+	@herds.keys.each do |h|
+		puts " #{h}, size: #{@herds[h]["size"]}"
+	end
+end
 
-# Run the script.
+##################
+# Run the Script.#
+##################
 load_data
-puts "
- ___________
- < Herder >
- -----------
-       \\   ^__^
-        \\  (oo)\\_______
-           (__)\\       )\\/\\
-                ||----w |
-                ||     ||"
 interperet
