@@ -15,8 +15,60 @@ def interperet
 		when '--help',nil then help
 		when '-l','--list' then list
 		when '-r','--run' then run
+		when '-s','--bench' then benchmark
 		else puts "Command: \"#{cmd}\" is unrecognized."
 	end
+end
+
+# Log and collect resource usage stats on herd start up.
+def benchmark
+	herd_name = ARGV[1]
+	
+	unless @herds[herd_name]
+		puts "No herd exists with name: '#{herd_name}'"
+		return
+	end
+
+  `systemctl restart docker`
+
+	# Start containers.
+	@herds[herd_name]["ids"].each do |id|
+	  `docker start #{id}`
+		puts "docker start #{id}"
+	end
+	# Sleep and give docker daemon time to create directory structures.
+  5.times do |i|
+  	puts "#{10 - i}"
+  	sleep 1
+  end
+
+	Dir.chdir("/sys/fs/cgroup/memory/system.slice/")
+	containers = Dir.glob("docker-*.scope")
+	Dir.chdir("/home/jordan/Projects/herder/")
+	threads = []
+	n = 0
+	containers.each do |c|
+		puts "Started stats collection for container #{n} id:#{c}"
+		id = c[/docker-(.*).scope/, 1].to_s
+		threads << Thread.new{
+			while(system("docker logs #{id} | tail -n3 | grep 'Aviarc startup complete'"))
+				puts "logging #{herd_name}#{n}"
+				file = "/sys/fs/cgroup/memory/system.slice/#{c}/memory.stat"
+				stats = `cat #{file}`
+				File.open("#{herd_name}#{n}", "a") do |f|
+					f.puts
+					f.puts Time.now.to_s
+					f.puts stats
+				end
+				sleep 2
+			end}
+		n+=1
+	end
+	
+	# Wait for all threads to finish.
+	threads.each {|t| t.join}
+  puts "Benchmarking complete."
+
 end
 
 # Build an image from dockerfile.
