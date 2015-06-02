@@ -38,30 +38,33 @@ def benchmark
 	end
 	# Sleep and give docker daemon time to create directory structures.
   5.times do |i|
-  	puts "#{10 - i}"
+  	puts "#{5 - i}"
   	sleep 1
   end
 
-	Dir.chdir("/sys/fs/cgroup/memory/system.slice/")
+	Dir.chdir("/sys/fs/cgroup/blkio/system.slice/")
 	containers = Dir.glob("docker-*.scope")
 	Dir.chdir("/home/jordan/Projects/herder/")
 	threads = []
 	n = 0
+
 	containers.each do |c|
 		puts "Started stats collection for container #{n} id:#{c}"
 		id = c[/docker-(.*).scope/, 1].to_s
-		threads << Thread.new{
-			while(system("docker logs #{id} | tail -n3 | grep 'Aviarc startup complete'"))
-				puts "logging #{herd_name}#{n}"
-				file = "/sys/fs/cgroup/memory/system.slice/#{c}/memory.stat"
+		threads << Thread.new(n){|n|
+			until(system("docker logs --tail=3 #{id} | grep 'Aviarc startup complete'"))
+				puts "logging #{herd_name}#{n} #{id}"
+				file = "/sys/fs/cgroup/blkio/system.slice/#{c}/blkio.io_wait_time"
 				stats = `cat #{file}`
 				File.open("#{herd_name}#{n}", "a") do |f|
-					f.puts
 					f.puts Time.now.to_s
 					f.puts stats
 				end
-				sleep 2
-			end}
+				sleep 1
+			end
+			puts "Thread #{n} exited."
+			sleep 3
+		}
 		n+=1
 	end
 	
