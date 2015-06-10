@@ -1,6 +1,7 @@
 #!/bin/ruby
 require 'active_support/inflector'
 require 'yaml'
+require 'lib/ext/string'
 
 @herds = Hash.new
 @file = 'data.yaml'
@@ -23,47 +24,44 @@ end
 # Log and collect resource usage stats on herd start up.
 def benchmark
 	herd_name = ARGV[1]
+	pids = Hash.new
 	
 	unless @herds[herd_name]
 		puts "No herd exists with name: '#{herd_name}'"
 		return
 	end
 
-  `systemctl restart docker`
-
 	# Start containers.
 	@herds[herd_name]["ids"].each do |id|
 	  `docker start #{id}`
-		puts "docker start #{id}"
+	  # Find the Pid of the docker container.
+		pids[id] = `docker inspect -f '{{ .State.Pid }}' #{id}`.chomp
+		puts "docker start #{id} Pid: #{pids[id]}"
 	end
-	# Sleep and give docker daemon time to create directory structures.
-  5.times do |i|
-  	puts "#{5 - i}"
-  	sleep 1
-  end
-
+  
+  # Get cgroup folders.
 	Dir.chdir("/sys/fs/cgroup/blkio/system.slice/")
 	containers = Dir.glob("docker-*.scope")
 	Dir.chdir("/home/jordan/Projects/herder/")
+	
 	threads = []
 	n = 0
+	@herds[herd_name]["ids"].each do |id|
+		puts "Started stats collection for container #{n} id:#{id}"
+		
+		threads << Thread.new(id, n, pids[id]){|id, n, pid|
+			until(system("grep 'Aviarc startup complete' #{ system("docker logs --tail=3 #{id}") }"))
+				puts "logging #{herd_name}#{n} #{id} #{pid}"
+        proc_io = `sudo cat /proc/#{pid}/io `
+        proc_status = `grep -Po "(?<=State:\s)\w" /proc/#{pid}/status`
 
-	containers.each do |c|
-		puts "Started stats collection for container #{n} id:#{c}"
-		id = c[/docker-(.*).scope/, 1].to_s
-		threads << Thread.new(n){|n|
-			until(system("docker logs --tail=3 #{id} | grep 'Aviarc startup complete'"))
-				puts "logging #{herd_name}#{n} #{id}"
-				file = "/sys/fs/cgroup/blkio/system.slice/#{c}/blkio.io_wait_time"
-				stats = `cat #{file}`
 				File.open("#{herd_name}#{n}", "a") do |f|
-					f.puts Time.now.to_s
-					f.puts stats
+					time = Time.now.strftime('%H:%M:%S')
+					f.puts "#{time},#{proc_status},#{proc_io.to_csv}"
 				end
 				sleep 1
 			end
 			puts "Thread #{n} exited."
-			sleep 3
 		}
 		n+=1
 	end
@@ -71,7 +69,7 @@ def benchmark
 	# Wait for all threads to finish.
 	threads.each {|t| t.join}
   puts "Benchmarking complete."
-
+  
 end
 
 # Build an image from dockerfile.
