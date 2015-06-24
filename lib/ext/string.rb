@@ -6,6 +6,7 @@ class String
 		data.map! { |d| d.split(/\n/) } # Split entries by line.
 		data.map! { |d| d.map! { |l| l[/[0-9]+/] } } # Only keep numerical values.
 		data.map! { |d| d.join(",") } # Join entries/values with ','
+		data.join("\n") # join all .csv lines with \n char.
 	end
 
 end
