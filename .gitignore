@@ -1,1 +1,3 @@
-*.yaml,*.json,*.html
+*.yaml
+*.json
+*.html
