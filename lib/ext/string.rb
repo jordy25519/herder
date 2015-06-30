@@ -1,6 +1,6 @@
 class String
 
-	# Transform newline separated str to .csv format.
+	# Transform newline separated data strings to .csv format.
 	def to_csv
 		data = self.split(/^\n/) # Split string to array of entries.
 		data.map! { |d| d.split(/\n/) } # Split entries by line.
@@ -8,5 +8,5 @@ class String
 		data.map! { |d| d.join(",") } # Join entries/values with ','
 		data.join("\n") # join all .csv lines with \n char.
 	end
-
+	
 end

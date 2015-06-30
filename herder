@@ -1,5 +1,6 @@
 #!/bin/ruby
 require 'active_support/inflector'
+require 'fileutils'
 require 'yaml'
 require './lib/ext/string'
 
@@ -45,11 +46,14 @@ def benchmark
 	#containers = Dir.glob("docker-*.scope")
 	#Dir.chdir("/home/jordan/Projects/herder/")
 	
+	# Create folder for test run.
+	run = Time.now.strftime "%D %H:%M"
+	FileUtils.mkdir run
 	threads = []
 	n = 0
 	@herds[herd_name]["ids"].each do |id|
 		puts "Started stats collection for container #{n} id:#{id}"
-		
+
 		# Mount fs for container logs instead of calling API?
 		# Stream log file + grep
 		threads << Thread.new(id, n, pids[id], Time.now.sec){|id, n, pid, start|
@@ -60,7 +64,7 @@ def benchmark
         proc_io = `sudo cat /proc/#{pid}/io`.to_csv
         
         # proc_status = `grep -Po "(?<=State:\t)[A-Z]" /proc/#{pid}/status`.chomp
-				File.open("#{herd_name}#{n}", "a") do |f|
+				File.open("#{run}/#{herd_name}#{n}", "a") do |f|
 					time = Time.now.sec - start
 					f.puts "#{time},#{proc_io},#{blkio_service_bytes},#{blkio_serviced},#{blkio_queued}"
 				end
