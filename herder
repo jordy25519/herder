@@ -46,8 +46,7 @@ def benchmark
 
 	# Create thread for each container.
 	threads = []
-	n = 0
-	@herds[herd_name]["ids"].each do |id|
+	@herds[herd_name]["ids"].each_with_index do |id, n|
 		puts "Started stats collection for container #{n} id:#{id}"
 
 		# Mount fs for container logs instead of calling API?
@@ -57,7 +56,7 @@ def benchmark
 				blkio_service_bytes = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_service_bytes").to_csv
 				blkio_serviced = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_serviced").to_csv
 				blkio_queued = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_queued").to_csv
-        proc_io = IO.read("proc/#{pid}/io").to_csv
+        proc_io = IO.read("/proc/#{pid}/io").to_csv
         
         # proc_status = `grep -Po "(?<=State:\t)[A-Z]" /proc/#{pid}/status`.chomp
 				File.open("tests/#{run}/#{herd_name}#{n}", "a") do |f|
@@ -67,7 +66,6 @@ def benchmark
 			end
 			puts "Thread #{n} exited."
 		}
-		n+=1
 	end
 	
 	# Wait for all threads to finish.
@@ -103,7 +101,7 @@ def create
 	# Convert image name to herd name.
 	friendly_name = image
 	friendly_name = /(?<=\/)\w+\b/.match(image).to_s if image.include?("/")
-	herd_name = friendly_name << "s"
+	herd_name = friendly_name + "s"
 
 	# Create herd data.
 	@herds[herd_name] = Hash["size" => size, "ids" => Array.new]
