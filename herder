@@ -1,5 +1,4 @@
 #!/bin/ruby
-require 'active_support/inflector'
 require 'fileutils'
 require 'yaml'
 require './lib/ext/string'
@@ -41,14 +40,11 @@ def benchmark
 		puts "docker start #{id} Pid: #{pids[id]}"
 	end
   
-  # Get cgroup folders.
-	#Dir.chdir("/sys/fs/cgroup/blkio/system.slice/")
-	#containers = Dir.glob("docker-*.scope")
-	#Dir.chdir("/home/jordan/Projects/herder/")
-	
 	# Create folder for test run.
-	run = Time.now.strftime "%D %H:%M"
-	FileUtils.mkdir run
+	run = Time.now.strftime "%F %H:%M"
+	FileUtils.mkdir_p "tests/#{run}"
+
+	# Create thread for each container.
 	threads = []
 	n = 0
 	@herds[herd_name]["ids"].each do |id|
@@ -56,16 +52,16 @@ def benchmark
 
 		# Mount fs for container logs instead of calling API?
 		# Stream log file + grep
-		threads << Thread.new(id, n, pids[id], Time.now.sec){|id, n, pid, start|
+		threads << Thread.new(id.chomp, n, pids[id], Time.now){|id, n, pid, start|
 			until(%x[docker logs --tail=3 #{id}].include? 'Aviarc startup complete')
-				blkio_service_bytes = `cat /sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_service_bytes`.to_csv
-				blkio_serviced = `cat /sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_serviced`.to_csv
-				blkio_queued = `cat /sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_queued`.to_csv
-        proc_io = `sudo cat /proc/#{pid}/io`.to_csv
+				blkio_service_bytes = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_service_bytes").to_csv
+				blkio_serviced = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_serviced").to_csv
+				blkio_queued = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_queued").to_csv
+        proc_io = IO.read("proc/#{pid}/io").to_csv
         
         # proc_status = `grep -Po "(?<=State:\t)[A-Z]" /proc/#{pid}/status`.chomp
-				File.open("#{run}/#{herd_name}#{n}", "a") do |f|
-					time = Time.now.sec - start
+				File.open("tests/#{run}/#{herd_name}#{n}", "a") do |f|
+					time = (Time.now - start).floor
 					f.puts "#{time},#{proc_io},#{blkio_service_bytes},#{blkio_serviced},#{blkio_queued}"
 				end
 			end
@@ -107,7 +103,7 @@ def create
 	# Convert image name to herd name.
 	friendly_name = image
 	friendly_name = /(?<=\/)\w+\b/.match(image).to_s if image.include?("/")
-	herd_name = friendly_name.pluralize
+	herd_name = friendly_name << "s"
 
 	# Create herd data.
 	@herds[herd_name] = Hash["size" => size, "ids" => Array.new]
