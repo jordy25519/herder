@@ -24,13 +24,19 @@ end
 # Log and collect resource usage stats on herd start up.
 def benchmark
 	herd_name = ARGV[1]
-	pids = Hash.new
+	dirty = (ARGV[2] === Nil)
+  pids = Hash.new
 	
-	unless @herds[herd_name]
+  unless dirty
+    clean
+    create
+  else
+   unless @herds[herd_name]
 		puts "No herd exists with name: '#{herd_name}'"
 		return
-	end
-
+	 end
+  end
+  
 	# Start containers.
 	@herds[herd_name]["ids"].each do |id|
 	  `docker start #{id}`
@@ -60,7 +66,7 @@ def benchmark
         
         # proc_status = `grep -Po "(?<=State:\t)[A-Z]" /proc/#{pid}/status`.chomp
 				File.open("tests/#{run}/#{herd_name}#{n}", "a") do |f|
-					time = (Time.now - start).floor
+					time = Time.now - start
 					f.puts "#{time},#{proc_io},#{blkio_service_bytes},#{blkio_serviced},#{blkio_queued}"
 				end
 			end
@@ -161,7 +167,11 @@ def help
 	puts "Build a Dockerfile:"
 	puts "  herder -b <repository/image_name> <path_to_dockerfile>"
 	puts ""
-	puts "Clean all Docker containers:"
+	puts "Benchmark container startup:"
+  puts " sudo herder --bench (<herd_name>|<image_name> <count>)"
+  puts "<herd_name> will use an existing herd. <image_name> <count> will create a new herd."
+  puts " *Requires root privilleges."
+  puts "Clean all Docker containers:"
 	puts "  herder --clean"
 	puts ""
 	puts "Create a new herd:"
