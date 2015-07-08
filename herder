@@ -24,12 +24,13 @@ end
 # Log and collect resource usage stats on herd start up.
 def benchmark
 	herd_name = ARGV[1]
-	dirty = (ARGV[2] === Nil)
+	dirty = (ARGV[2] === nil)
   pids = Hash.new
 	
   unless dirty
     clean
     create
+    herd_name = herd_name + "s"
   else
    unless @herds[herd_name]
 		puts "No herd exists with name: '#{herd_name}'"
@@ -38,7 +39,8 @@ def benchmark
   end
   
 	# Start containers.
-	@herds[herd_name]["ids"].each do |id|
+	puts @herds
+  @herds[herd_name]["ids"].each do |id|
 	  `docker start #{id}`
 	  sleep 2
 	  # Find the Pid of the docker container.
@@ -47,7 +49,7 @@ def benchmark
 	end
   
 	# Create folder for test run.
-	run = Time.now.strftime "%F %H:%M"
+	run = herd_name + " " + @herds[herd_name]["size"].to_s + " " + (Time.now.strftime "%F %H:%M")
 	FileUtils.mkdir_p "tests/#{run}"
 
 	# Create thread for each container.
@@ -95,7 +97,7 @@ end
 def clean
  puts "Cleaning herds..."
  File.open(@file, 'w') {}
- exec("docker rm -f `docker ps --no-trunc -aq`")
+ %x[docker rm -f `docker ps --no-trunc -aq`]
 end
 
 # Instantiate a herd of docker containers.
