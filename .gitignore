@@ -2,3 +2,5 @@
 *.json
 *.html
 tests/
+tmp
+public
