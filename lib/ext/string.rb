@@ -8,5 +8,5 @@ class String
 		data.map! { |d| d.join(",") } # Join entries/values with ','
 		data.join("\n") # join all .csv lines with \n char.
 	end
-	
+
 end

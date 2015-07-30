@@ -1,0 +1,168 @@
+<html>
+<head></head>
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+</style>
+<body>
+  <%= select_tag :tests, options_for_select(@tests) %>
+  <%= select_tag :filter_options, options_for_select(filter_options) %>
+  <button id="render">render</button>
+  <div id="data">
+    <%= render partial: "test", object: @test%>
+  </div>
+  <svg id="visualisation" width="1600" height="800"></svg>
+</body>
+<script>
+
+var key = ""; //Dirty hack variable for passing data.
+var vis = vis == null ? null : vis;
+var color = d3.scale.category20c();
+
+var render = function() {
+
+  // Filter CSV data by category e.g. Memory, CPU.
+  var filter_options = $("#filter_options").val().trim();
+  var options = ["timestamp"];
+  if(filter_options == "Memory (bytes)")
+    options.push("rss");
+  else if(filter_options == "CPU usage (USER_HZ)")
+    options.push("cpu_sys", "cpu_usr");
+  else if(filter_options == "CPU time (nanoseconds)")
+     options.push("cpu_time");
+  else if(filter_options == "IO paged (bytes)")
+    options.push("rchar", "wchar", "rbytes", "wbytes");
+  else if(filter_options == "IO unpaged (bytes)") 
+    options.push("syscr","syscw");
+  else
+    return null;
+  console.log(options);
+  
+  // Load each CSV in selected test run.
+  var k = 0;
+  for (var i = 0; i < 10; i++) {
+    
+    var file = "/tests/" + $("#tests").val() + "aviarcs" + i;
+    
+    d3.csv(file, function(csv) {    
+
+      csv = csv.map(function(d) {
+        new_data = {};
+        options.forEach(function(key){
+          if(key == "timestamp") new_data[key] = +d[key];
+          else new_data[key] = +d[key]; // Convert value to int.
+        });
+        return new_data; 
+      });
+
+      // Construct graph SVGs.
+      if(vis == null)
+      {
+        buildGraph(csv, options);
+      }
+
+      var drawLine = d3.svg.line()
+        .x(function(d) { 
+          return xScale(d.timestamp); 
+        })
+          .y(function(d) { 
+            return yScale(d[key]);
+          })
+            .interpolate("basis");
+
+
+      // Plot line for each column.
+      options.forEach(function(option) {
+        if(option == "timestamp") return;
+        key = option;
+        vis.append('svg:path')
+          .attr('d', drawLine(csv))
+            .attr('stroke', function() { return color(k++); } )
+              .attr('stroke-width', 3)
+                .attr('fill', 'none');
+      });
+      
+    }); //d3.csv
+
+  } // for
+ 
+  vis = null;
+};// function
+
+// Construct SVG graph - axis, labels, etc.
+function buildGraph(csv, options) {
+
+  vis = d3.select("#visualisation"),
+  WIDTH = $("#visualisation").width(),
+  HEIGHT = $("#visualisation").height(),
+  MARGINS = {
+      top: 20,
+      right: 20,
+      bottom: 20,
+      left: 200
+  },
+  xScale = d3.scale.linear().range([MARGINS.left, WIDTH - MARGINS.right])
+    .domain([0, d3.max(csv, function(d) { return d.timestamp; }) * 1.2 ]),
+
+  yScale = d3.scale.linear().range([HEIGHT - MARGINS.top, MARGINS.bottom])
+    .domain([0, d3.max(csv, function(d) { return d[options[1]]; }) * 1.2 ]),
+  
+  xAxis = d3.svg.axis()
+  .scale(xScale),
+
+  yAxis = d3.svg.axis()
+  .scale(yScale)
+  .orient("left");
+
+  vis.append("svg:g")
+    .attr("class", "x axis")
+      .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
+        .call(xAxis);
+
+  vis.append("svg:g")
+    .attr("class", "y axis")
+      .attr("transform", "translate(" + (MARGINS.left) + ",0)")
+        .call(yAxis)
+        .append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("y", 6)
+        .attr("dy", ".71em")
+        .style("text-anchor", "end")
+        .text($("#filter_options").val());
+
+  // add legend   
+  var legend = vis.append("g")
+    .attr("class", "legend")
+    .attr("x", WIDTH - 65)
+    .attr("y", 25)
+    .attr("height", 100)
+    .attr("width", 200);
+
+  legend.selectAll('g').data(new Array(20))
+      .enter()
+      .append('g')
+      .each(function(d, i) {
+        var g = d3.select(this);
+        g.append("rect")
+          .attr("x", WIDTH - 30)
+          .attr("y", 10 + i * 25)
+          .attr("width", 10)
+          .attr("height", 10)
+          .style("fill", color(i));
+        
+        g.append("text")
+          .attr("x", WIDTH - 100)
+          .attr("y", 20 + i * 25)
+          .attr("height", 30)
+          .attr("width", 100)
+          .style("fill", color(i))
+          .text(options[Math.ceil(i % (options.length - 1)) + 1] + Math.floor(i / options.length));
+
+      });
+
+};
+
+$("#render").click(render);
+
+</script>
+</html>

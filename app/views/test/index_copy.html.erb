@@ -1,0 +1,90 @@
+<html>
+<head></head>
+<body>
+  <div id="csv0" hidden="true"><%= File.read("aviarcs0") %></div>
+  <div id="csv1" hidden="true"><%= File.read("aviarcs1") %></div>
+  <div id="csv2" hidden="true"><%= File.read("aviarcs2") %></div>
+  <div id="csv3" hidden="true"><%= File.read("aviarcs3") %></div>
+  <div id="csv4" hidden="true"><%= File.read("aviarcs4") %></div>
+  <div id="csv5" hidden="true"><%= File.read("aviarcs5") %></div>
+  <div id="csv6" hidden="true"><%= File.read("aviarcs6") %></div>
+  <div id="csv7" hidden="true"><%= File.read("aviarcs7") %></div>
+  <div id="csv8" hidden="true"><%= File.read("aviarcs8") %></div>
+  <div id="csv9" hidden="true"><%= File.read("aviarcs9") %></div>
+  <div id="linechart_material"></div>
+</body>
+<script type="text/javascript" src="https://www.google.com/jsapi"></script>
+  <script type="text/javascript">
+    google.load('visualization', '1.1', {packages: ['line']});
+    google.setOnLoadCallback(drawChart);
+
+    function drawChart() 
+    {
+      var data = new google.visualization.DataTable();
+      data.addColumn('number', 'time');
+
+      for (var i = 0; i < 10; i++) 
+      {
+        data.addColumn('number', 'read' + i);
+        data.addColumn('number', 'write' + i);
+      }
+
+      for (var i = 0; i < 10; i++) 
+      {
+        var node = document.getElementById("csv" + i);
+        var csv = node.innerText;
+        array = csv.split("\n");
+
+      //data.addColumn('number', 'syscr');
+      //data.addColumn('number', 'syscw');
+      //data.addColumn('number', 'rbytes');
+      //data.addColumn('number', 'wbytes');
+      //data.addColumn('number', 'cancelled wbytes');
+      //data.addColumn('number', 'blkio1');
+      //data.addColumn('number', 'blkio2');
+      //data.addColumn('number', 'blkio3');
+
+      array.forEach(function(entry)
+      {
+        if(entry.length != 0)
+        {
+          var e = entry.split(",").slice(0, 3).map(Number);
+          var arr = new Array(21);
+          arr[0] = e[0];
+          arr[(2 * i) + 1] = e[1];
+          arr[(2 * i) + 2] = e[2];
+
+          date = data.addRow(arr);
+        }
+      });
+      node.parentElement.removeChild(node);
+    };
+
+      var options = {
+        chart: {
+          title: 'Container Startup',
+          subtitle: 'I/O usage'
+        },
+        series: {
+          1: { lineDashStyle: [10, 2] },
+          3: { lineDashStyle: [10, 2] },
+          5: { lineDashStyle: [10, 2] },
+          7: { lineDashStyle: [10, 2] },
+          9: { lineDashStyle: [10, 2] },
+          11: { lineDashStyle: [10, 2] },
+          13: { lineDashStyle: [10, 2] },
+          15: { lineDashStyle: [10, 2] },
+          17: { lineDashStyle: [10, 2] },
+          19: { lineDashStyle: [10, 2] },
+          21: { lineDashStyle: [10, 2] }
+        },
+        width: 1280,
+        height: 720
+      };
+
+      var chart = new google.charts.Line(document.getElementById('linechart_material'));
+
+      chart.draw(data, options);
+    }
+  </script>
+</html>

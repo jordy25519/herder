@@ -25,6 +25,7 @@ end
 def benchmark
 	herd_name = ARGV[1]
 	dirty = (ARGV[2] === nil)
+	type = ARGV[3]
   pids = Hash.new
 	
   unless dirty
@@ -38,38 +39,30 @@ def benchmark
 	 end
   end
   
-	# Start containers.
-	puts @herds
-  @herds[herd_name]["ids"].each do |id|
-	  `docker start #{id}`
-	  sleep 2
-	  # Find the Pid of the docker container.
-		pids[id] = `docker inspect -f '{{ .State.Pid }}' #{id}`.chomp
-		puts "docker start #{id} Pid: #{pids[id]}"
-	end
-  
-	# Create folder for test run.
-	run = herd_name + " " + @herds[herd_name]["size"].to_s + " " + (Time.now.strftime "%F %H:%M")
+  # Create folder for test run.
+	run = herd_name + "_size" + @herds[herd_name]["size"].to_s + "_" + (Time.now.strftime "date%F_time%H-%M")
 	FileUtils.mkdir_p "tests/#{run}"
 
-	# Create thread for each container.
 	threads = []
 	@herds[herd_name]["ids"].each_with_index do |id, n|
-		puts "Started stats collection for container #{n} id:#{id}"
+	 	system("docker start #{id}")
+		pids[id] = `docker inspect -f '{{ .State.Pid }}' #{id}`.chomp
+		puts "docker start #{id} Pid: #{pids[id]}"
+		puts "Starting stats collection for container #{n} id:#{id}"
 
-		# Mount fs for container logs instead of calling API?
-		# Stream log file + grep
-		threads << Thread.new(id.chomp, n, pids[id], Time.now){|id, n, pid, start|
+		threads << Thread.new(id.chomp, n, pids[id]){|id, n, pid|
 			until(%x[docker logs --tail=3 #{id}].include? 'Aviarc startup complete')
-				blkio_service_bytes = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_service_bytes").to_csv
-				blkio_serviced = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_serviced").to_csv
-				blkio_queued = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_queued").to_csv
+				#blkio_service_bytes = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_service_bytes").to_csv
+				#blkio_serviced = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_serviced").to_csv
+				#blkio_queued = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_queued").to_csv
+        #proc_status = `grep -Po "(?<=State:\t)[A-Z]" /proc/#{pid}/status`.chomp
+        cpu_split = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.stat").to_csv
+        cpu_usage = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.usage").to_csv
         proc_io = IO.read("/proc/#{pid}/io").to_csv
         
-        # proc_status = `grep -Po "(?<=State:\t)[A-Z]" /proc/#{pid}/status`.chomp
 				File.open("tests/#{run}/#{herd_name}#{n}", "a") do |f|
-					time = Time.now - start
-					f.puts "#{time},#{proc_io},#{blkio_service_bytes},#{blkio_serviced},#{blkio_queued}"
+					time = Time.now
+					f.puts "#{time},#{cpu_split},#{cpu_usage},#{proc_io}"
 				end
 			end
 			puts "Thread #{n} exited."
