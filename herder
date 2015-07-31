@@ -59,10 +59,11 @@ def benchmark
         cpu_split = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.stat").to_csv
         cpu_usage = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.usage").to_csv
         proc_io = IO.read("/proc/#{pid}/io").to_csv
-        
+        mem = IO.read("/sys/fs/cgroup/memory/system.slice/docker-#{id}.scope/memory.stat").grep("rss").to_csv
+
 				File.open("tests/#{run}/#{herd_name}#{n}", "a") do |f|
-					time = Time.now
-					f.puts "#{time},#{cpu_split},#{cpu_usage},#{proc_io}"
+					time = Time.now.strftime "%-m/%-d %H:%M:%S.%L"
+					f.puts "#{time},#{cpu_split},#{cpu_usage},#{proc_io},#{mem}"
 				end
 			end
 			puts "Thread #{n} exited."
