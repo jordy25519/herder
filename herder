@@ -59,9 +59,12 @@ def benchmark
         cpu_split = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.stat").to_csv
         cpu_usage = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.usage").to_csv
         proc_io = IO.read("/proc/#{pid}/io").to_csv
-        mem = IO.read("/sys/fs/cgroup/memory/system.slice/docker-#{id}.scope/memory.stat").to_csv
+        mem = IO.readlines("/sys/fs/cgroup/memory/system.slice/docker-#{id}.scope/memory.stat")[1].to_csv
 
-				File.open("tests/#{run}/#{herd_name}#{n}", "a") do |f|
+				File.open("tests/#{run}/#{herd_name}#{n}.csv", "a") do |f|
+					# Write headerline on first run.
+    			f.puts "timestamp,cpu_user,cpu_system,cpu_time,rchar,wchar,syscr,syscw,rbytes,wbytes,cbytes,rss" if f.pos == 0
+    			puts "f.pos: " + f.pos
 					time = Time.now.strftime "%-m/%-d %H:%M:%S.%L"
 					f.puts "#{time},#{cpu_split},#{cpu_usage},#{proc_io},#{mem}"
 				end
