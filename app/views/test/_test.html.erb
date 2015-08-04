@@ -1,5 +1,5 @@
 <% for i in 0..(Dir.glob(test + "*").count - 1) do %>
   <div id="<%="csv#{i}"%>" hidden="true">
-  	<%= File.read(test + "aviarcs#{i}") %>
+  	<%= File.read(test + "aviarcs#{i}.csv") %>
   </div>
 <% end %>

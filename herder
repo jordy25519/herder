@@ -63,8 +63,7 @@ def benchmark
 
 				File.open("tests/#{run}/#{herd_name}#{n}.csv", "a") do |f|
 					# Write headerline on first run.
-    			f.puts "timestamp,cpu_user,cpu_system,cpu_time,rchar,wchar,syscr,syscw,rbytes,wbytes,cbytes,rss" if f.pos == 0
-    			puts "f.pos: " + f.pos
+    			f.puts "timestamp,cpu_user,cpu_system,cpu_time,rchar,wchar,syscr,syscw,rbytes,wbytes,cbytes,rss" if f.size == 0
 					time = Time.now.strftime "%-m/%-d %H:%M:%S.%L"
 					f.puts "#{time},#{cpu_split},#{cpu_usage},#{proc_io},#{mem}"
 				end
