@@ -31,12 +31,18 @@ var render = function() {
   var options = ["timestamp"];
   if(filter_options == "Memory (bytes)")
     options.push("rss");
+  else if(filter_options == "Memory instant (bytes)")
+    options.push("rss_instant")
   else if(filter_options == "CPU usage (USER_HZ)")
     options.push("cpu_system", "cpu_user");
   else if(filter_options == "CPU time (nanoseconds)")
-     options.push("cpu_time");
+    options.push("cpu_time");
+  else if(filter_options == "CPU instant (nanoseconds)")
+    options.push("cpu_time_instant");
   else if(filter_options == "IO paged (bytes)")
     options.push("rchar", "wchar", "rbytes", "wbytes");
+  else if(filter_options == "IO paged instant (bytes)")
+    options.push("rchar_instant", "wchar_instant");
   else if(filter_options == "IO unpaged (bytes)") 
     options.push("syscr","syscw");
   else
