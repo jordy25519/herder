@@ -2,6 +2,7 @@
 require 'fileutils'
 require 'yaml'
 require './lib/ext/string'
+require './lib/tasks/postprocess'
 
 @herds = Hash.new
 @file = 'data.yaml'
@@ -75,6 +76,9 @@ def benchmark
 	# Wait for all threads to finish.
 	threads.each {|t| t.join}
   puts "Benchmarking complete."
+  sleep 5
+  
+  PostProcess.new.execute(run)
   
 end
 
