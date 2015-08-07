@@ -7,8 +7,12 @@ module ApplicationHelper
 			"CPU usage (USER_HZ)",
 			"CPU time (nanoseconds)",
 			"CPU instant (nanoseconds)",
-			"IO paged (bytes)",
-			"IO paged instant (bytes)",
-			"IO unpaged (bytes)"] 
+			"IO read (bytes)",
+  		"IO write (bytes)",
+  		"IO read instant (bytes)",
+  		"IO write instant (bytes)",
+  		"IO unpaged read (bytes)",
+  		"IO unpaged write (bytes)"
+  	]  
 	end
 end

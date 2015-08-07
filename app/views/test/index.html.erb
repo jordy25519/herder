@@ -7,19 +7,22 @@
 <body>
   <%= select_tag :tests, options_for_select(@tests) %>
   <%= select_tag :filter_options, options_for_select(filter_options) %>
+  <input id="range"/>
   <button id="render">render</button>
-  <div id="data">
-    <%= render partial: "test", object: @test%>
-  </div>
   <div><br><br></div>
-  <svg id="visualization" width="1600" height="800"></svg>
+  <svg id="visualization" xmlns="http://www.w3.org/2000/svg"  width="1600" height="800"></svg>
 </body>
 <script>
 
 var key = ""; //Dirty hack variable for passing data.
-var vis = vis == null ? null : vis;
-var color = d3.scale.category20c();
-var sizes = <%= @sizes.to_s.html_safe %>;
+var vis = vis == null ? null : vis; // Main graph SVG.
+
+var sizes = <%= @sizes.to_s.html_safe %>; // List of file count in each test directory.
+var colourBrewer = d3.scale.ordinal().range(colorbrewer.Paired[12]); // Generates colour palette.
+var parseTime = d3.time.format("%m/%e %H:%M:%S.%L").parse; // Formats CSV timestamps.
+
+var yHash  = {};
+var lines = [];
 
 var render = function() {
 
@@ -39,77 +42,106 @@ var render = function() {
     options.push("cpu_time");
   else if(filter_options == "CPU instant (nanoseconds)")
     options.push("cpu_time_instant");
-  else if(filter_options == "IO paged (bytes)")
-    options.push("rchar", "wchar", "rbytes", "wbytes");
-  else if(filter_options == "IO paged instant (bytes)")
-    options.push("rchar_instant", "wchar_instant");
-  else if(filter_options == "IO unpaged (bytes)") 
-    options.push("syscr","syscw");
+  else if(filter_options == "IO read (bytes)")
+    options.push("rchar");
+  else if(filter_options == "IO write (bytes)")
+    options.push("wchar");
+  else if(filter_options == "IO read instant (bytes)")
+    options.push("rchar_instant");
+  else if(filter_options == "IO write instant (bytes)")
+    options.push("wchar_instant");
+  else if(filter_options == "IO unpaged read (bytes)") 
+    options.push("rbytes");
+  else if(filter_options == "IO unpaged write (bytes)") 
+    options.push("wbytes");
   else
     return null;
+  
+  // Limit files to draw.
+  var range = $("#range").val();
+  if(range.indexOf(",") > -1)
+    lines = range.split(",").map(Number);
+  else if(range.indexOf("-") > -1){
+    var r = range.split("-").map(Number);
+    lines = Array.apply(null, {length: r[1]}).map(Number.call, Number).slice(r[0]);
+  }
+
+  // Get number of test files in selected test run.
   var size = +sizes[$("#tests")[0].selectedIndex];
+  
   console.log("options:" + options);
   console.log("size: " + size);
-  
-  // Load each CSV in selected test run.
-  var k = 0;
+  console.log("lines: " + lines);
+
+  // Find the min and max values in all CSVs to determine Y axis scale.
+  yHash = {};
+  for(var i = 1, l = options.length; i < l; i++)
+    yHash[options[i]] = [0, 0];
+
   for (var i = 0; i < size; i++) {
-    
+    var file = "/tests/" + $("#tests").val() + "aviarcs" + i + ".csv";
+
+    d3.csv(file, function(csv) {
+      csv.forEach(function(d) {
+        for(var i = 1, l = options.length; i < l; i++) {
+          var min = yHash[options[i]][0];
+          var max = yHash[options[i]][1];
+          var test = +d[options[i]];
+          yHash[options[i]][0] = (test < min) ? test : min ;
+          yHash[options[i]][1] = (test > max) ? test : max ;
+        }
+      });
+    });
+  }
+  console.log(yHash);
+
+  // Load each CSV in selected test run.
+  var k = 0
+  for (var i = 0; i < size; i++) {
+
+    if($("#range").val() != "" && $.inArray(i, lines) == -1) continue;
+
     var file = "/tests/" + $("#tests").val() + "aviarcs" + i + ".csv";
 
     d3.csv(file, function(csv) {
       
-      if(csv == null){
-        console.log("CSV is null.");
-        return;
-      }
-
-      var parseTime = d3.time.format("%m/%e %H:%M:%S.%L").parse;
-      
-      
       csv = csv.map(function(d) {
         new_data = {};
         options.forEach(function(key){
-          if(key == "timestamp"){ 
-            new_data[key] = parseTime(String(d.timestamp));
-            new_data[key] = new_data[key].setFullYear(2015);
-          }
-          else{
-            new_data[key] = +d[key]; // Convert value to int.
-          }
+            new_data[key] = (key == "timestamp") ? parseTime(String(d.timestamp)) : new_data[key] = +d[key];
         });
         return new_data; 
       });
 
-      // Construct graph SVGs.
-      if(vis == null)
-        buildGraph(csv, options, size);
+      // Construct main graph. Do once.
+      if(vis == null) buildGraph(csv, options, size);
 
-      var drawLine = d3.svg.line()
-        .x(function(d) {
-          return xScale(d.timestamp);
-        })
-          .y(function(d) { 
-            return yScale(d[key]);
-          }).interpolate("basis");
+      var drawLine = d3.svg.line().x(function(d) { return xScale(d.timestamp); }).y(function(d) { return yScale(d[key]); }).interpolate("basis");
 
-      // Plot line for each column.
-      options.forEach(function(option) {
-        if(option == "timestamp") return;
-        key = option;
+      // Plot line for each CSV column.
+      options.forEach(function(o)
+      {
+        if(o == "timestamp") return;
+        key = o;
         vis.append('svg:path')
           .attr('d', drawLine(csv))
-            .attr('stroke', function() { return color(k++); } )
-              .attr('stroke-width', 3)
-                .attr('fill', 'none');
+          .attr('stroke', getColour(k++))
+          .attr('stroke-width', 1.5)
+          .attr('fill', 'none');
       });
-      
+
     }); //d3.csv
 
   } // for
  
   vis = null;
+
 };// function
+
+// Helper function to return colour code.
+function getColour(i){
+  return $("#range").val() != "" ? colourBrewer(lines[i]) :  colourBrewer(i);
+}
 
 // Construct SVG graph - axis, labels, etc.
 function buildGraph(csv, options, size) {
@@ -128,9 +160,9 @@ function buildGraph(csv, options, size) {
       d3.min(csv, function(d) { return d.timestamp; }),
       d3.max(csv, function(d) { return d.timestamp; })
     ]),
-
+    
   yScale = d3.scale.linear().range([HEIGHT - MARGINS.bottom, MARGINS.bottom])
-    .domain([0, d3.max(csv, function(d) { return d[options[1]]; })]),
+    .domain([yHash[options[1]][0], yHash[options[1]][1]]),
   
   xAxis = d3.svg.axis()
   .scale(xScale),
@@ -141,27 +173,27 @@ function buildGraph(csv, options, size) {
 
   vis.append("svg:g")
     .attr("class", "x axis")
-      .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
-        .call(xAxis);
+    .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
+    .call(xAxis);
 
   vis.append("text")
-        .attr("x", WIDTH/2 )
-        .attr("y",  HEIGHT - MARGINS.bottom + 50 )
-        .style("text-anchor", "middle")
-        .text("Time (Seconds)");
+    .attr("x", WIDTH/2 )
+    .attr("y",  HEIGHT - MARGINS.bottom + 50 )
+    .style("text-anchor", "middle")
+    .text("Time (Seconds)");
 
   vis.append("svg:g")
     .attr("class", "y axis")
-      .attr("transform", "translate(" + (MARGINS.left) + ",0)")
-        .call(yAxis);
+    .attr("transform", "translate(" + (MARGINS.left) + ",0)")
+    .call(yAxis);
 
   vis.append("text")
-        .attr("transform", "rotate(-90)")
-        .attr("y", 10)
-        .attr("x", HEIGHT/-2 + MARGINS.bottom)
-        .attr("dy", ".71em")
-        .style("text-anchor", "end")
-        .text($("#filter_options").val());
+    .attr("transform", "rotate(-90)")
+    .attr("y", 10)
+    .attr("x", HEIGHT/-2 + MARGINS.bottom)
+    .attr("dy", ".71em")
+    .style("text-anchor", "end")
+    .text($("#filter_options").val());
 
   // add legend   
   var legend = vis.append("g")
@@ -171,28 +203,34 @@ function buildGraph(csv, options, size) {
     .attr("height", 100)
     .attr("width", 200);
 
+  var k = 0;
   legend.selectAll('g').data(new Array(size * (options.length - 1)))
-      .enter()
-      .append('g')
-      .each(function(d, i) {
-        var g = d3.select(this);
-        g.append("rect")
-          .attr("x", WIDTH - 100)
-          .attr("y", 10 + i * 25)
-          .attr("width", 10)
-          .attr("height", 10)
-          .style("fill", color(i));
-        
-        g.append("text")
-          .attr("x", WIDTH - 85)
-          .attr("y", 20 + i * 25)
-          .attr("height", 30)
-          .attr("width", 100)
-          .style("fill", color(i))
-          .text(options[Math.ceil(i % (options.length - 1)) + 1] + Math.floor(i / (options.length - 1)));
-      });
+    .enter()
+    .append('g')
+    .each(function(d, i) {
+      var g = d3.select(this);
+      
+      if($("#range").val() != "" && $.inArray(i, lines) == -1)
+        return;
+      g.append("rect")
+        .attr("x", WIDTH - 100)
+        .attr("y", 10 + i * 25)
+        .attr("width", 10)
+        .attr("height", 10)
+        .style("fill", getColour(k));
+      
+      g.append("text")
+        .attr("x", WIDTH - 85)
+        .attr("y", 20 + i * 25)
+        .attr("height", 30)
+        .attr("width", 100)
+        .style("fill", getColour(k))
+        .text(options[Math.ceil(k++ % (options.length - 1)) + 1].substring(0, 10) + Math.floor(i / (options.length - 1)));
+    });
 
 };
+
+
 
 $("#render").click(render);
 

@@ -15,6 +15,9 @@ class PostProcess
 			name = File.basename(file)
 			new_file = process(name, csv)
 			FileUtils.mv(new_file, file)
+			
+			# Give read permissions to all files.
+			`chmod 0444 ./tests/#{test_dir}/*`
 		end
 
 		puts "CSV postprocessing complete."

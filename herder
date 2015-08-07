@@ -18,6 +18,7 @@ def interperet
 		when '-l','--list' then list
 		when '-r','--run' then run
 		when '-s','--bench' then benchmark
+		when '-p' then process
 		else puts "Command: \"#{cmd}\" is unrecognized."
 	end
 end
@@ -191,6 +192,14 @@ def list
 	puts "Herds: "	
 	@herds.keys.each do |h|
 		puts " #{h}, size: #{@herds[h]["size"]}"
+	end
+end
+
+def process 
+	Dir.glob("./tests/*").each do |d|
+		x = d.split("./tests/")[1]
+		puts x
+		PostProcess.new.execute(x)			
 	end
 end
 
