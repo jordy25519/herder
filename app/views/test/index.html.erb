@@ -9,6 +9,7 @@
   <%= select_tag :filter_options, options_for_select(filter_options) %>
   <input id="range"/>
   <button id="render">render</button>
+  <button id="download-svgs">Download SVGs</button>
   <div><br><br></div>
   <svg id="visualization" xmlns="http://www.w3.org/2000/svg"  width="1600" height="800"></svg>
 </body>
@@ -235,7 +236,38 @@ function buildGraph(csv, options, size) {
 
 };
 
+// Render each line/CSV file one by one and download.
+var k = 0;
+var download = function() {
+  console.log("downloading");
+  var size = +sizes[$("#tests")[0].selectedIndex];
+
+  for (var i = 0; i < size; i++) {
+
+    // Wait for rendering to complete then download SVG.
+    setTimeout(function() {
+      
+      $("#range").val(String(k++));
+      $("#render").trigger("click");
+
+      setTimeout(function() {
+        // Click the graph to activate svg-crowbar download links.
+        $("#visualization").trigger("click");
+
+        // Get svg-crowbar link for main SVG.
+        var link = $(".svg-crowbar").filter(function(){ return $(this).text().indexOf("SVG #0") > -1 })[1];
+
+        // Click on its download button.
+        $($(link).children()[0]).trigger("click");
+      }, 4000);
+
+    }, 6000 * i);
+
+  } 
+};
+
 $("#render").click(render);
+$("#download-svgs").click(download);
 
 </script>
 </html>
