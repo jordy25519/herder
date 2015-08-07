@@ -1,6 +1,8 @@
 #!/bin/bash
 # Convert SVGs to PDFs.
+# Usage: convert /target/dir
 echo "Converting SVGs..."
+cd $@
 for i in *.svg; do
   filename=$(basename "$i")
   filename="${filename%.*}"

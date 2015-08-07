@@ -213,6 +213,9 @@
     setTimeout(function() {
       window.URL.revokeObjectURL(url);
     }, 10);
+
+    // Download is done. Go away svg-crowbar!.
+    $(".svg-crowbar").remove();
   }
 
 
