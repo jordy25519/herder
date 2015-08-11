@@ -90,7 +90,7 @@ var render = function() {
   for(var i = 1, l = options.length; i < l; i++)
     yHash[options[i]] = [0, 0];
 
-  for (var i = 0; i < size; i++)
+  for (var i = 0; i < size; i++){
     var file = "/tests/" + $("#tests").val() + "aviarcs" + i + ".csv";
 
     d3.csv(file, function(csv) {
@@ -106,8 +106,9 @@ var render = function() {
           yHash[options[i]][0] = (test < min) ? test : min ;
           yHash[options[i]][1] = (test > max) ? test : max ;
         };
+      });
     });
-  });
+  };
 
   console.log(yHash);
   console.log("xMin: " + xMin + " xMax: " + xMax);
