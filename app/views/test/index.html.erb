@@ -84,8 +84,8 @@ var render = function() {
 
   // Find the min and max values in all CSVs to determine X and Y axis scale.
   // Intialise dates with extreme values.
-  xMin = parseTime(String("01/01 12:01:02.003")).setFullYear(2015);
-  xMax = parseTime(String("01/01 12:01:02.003")).setFullYear(2015);
+  xMin = parseTime(String("12/01 12:01:02.003"));
+  xMax = parseTime(String("01/01 12:01:02.003"));
   yHash = {};
   for(var i = 1, l = options.length; i < l; i++)
     yHash[options[i]] = [0, 0];
@@ -95,7 +95,7 @@ var render = function() {
 
     d3.csv(file, function(csv) {
       csv.forEach(function(d) {
-        var time = parseTime(String(d.timestamp)).setFullYear(2015);
+        var time = parseTime(String(d.timestamp));
         xMin = (time < xMin) ? time : xMin;
         xMax = (time > xMax) ? time : xMax;
 
@@ -125,7 +125,7 @@ var render = function() {
       csv = csv.map(function(d) {
         new_data = {};
         options.forEach(function(key){
-            new_data[key] = (key == "timestamp") ? parseTime(String(d.timestamp)).setFullYear(2015) : new_data[key] = +d[key];
+            new_data[key] = (key == "timestamp") ? parseTime(String(d.timestamp)) : new_data[key] = +d[key];
         });
         return new_data; 
       });
@@ -175,8 +175,9 @@ function buildGraph(csv, options, size) {
   xScale = d3.time.scale()
   .range([MARGINS.left, WIDTH])
   .domain([
-    d3.min(csv, function(d) { return d.timestamp; }),
-    d3.max(csv, function(d) { return d.timestamp; }),
+    // d3.min(csv, function(d) { return d.timestamp; }),
+    // d3.max(csv, function(d) { return d.timestamp; }),
+    xMin, xMax
   ]),
     
   yScale = d3.scale.linear()
