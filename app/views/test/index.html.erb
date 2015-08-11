@@ -25,6 +25,8 @@ var parseTime = d3.time.format("%m/%e %H:%M:%S.%L").parse; // Formats CSV timest
 
 var yHash  = {};
 var lines = [];
+var xMin = "";
+var xMax = "";
 
 var render = function() {
 
@@ -80,27 +82,35 @@ var render = function() {
   console.log("size: " + size);
   console.log("lines: " + lines);
 
-  // Find the min and max values in all CSVs to determine Y axis scale.
+  // Find the min and max values in all CSVs to determine X and Y axis scale.
+  // Intialise dates with extreme values.
+  xMin = parseTime(String("01/01 12:01:02.003")).setFullYear(2015);
+  xMax = parseTime(String("01/01 12:01:02.003")).setFullYear(2015);
   yHash = {};
   for(var i = 1, l = options.length; i < l; i++)
     yHash[options[i]] = [0, 0];
 
-  for (var i = 0; i < size; i++) {
+  for (var i = 0; i < size; i++)
     var file = "/tests/" + $("#tests").val() + "aviarcs" + i + ".csv";
 
     d3.csv(file, function(csv) {
       csv.forEach(function(d) {
+        var time = parseTime(String(d.timestamp)).setFullYear(2015);
+        xMin = (time < xMin) ? time : xMin;
+        xMax = (time > xMax) ? time : xMax;
+
         for(var i = 1, l = options.length; i < l; i++) {
           var min = yHash[options[i]][0];
           var max = yHash[options[i]][1];
           var test = +d[options[i]];
           yHash[options[i]][0] = (test < min) ? test : min ;
           yHash[options[i]][1] = (test > max) ? test : max ;
-        }
-      });
+        };
     });
-  }
+  });
+
   console.log(yHash);
+  console.log("xMin: " + xMin + " xMax: " + xMax);
 
   // Load each CSV in selected test run.
   var k = lines[0];
@@ -114,7 +124,7 @@ var render = function() {
       csv = csv.map(function(d) {
         new_data = {};
         options.forEach(function(key){
-            new_data[key] = (key == "timestamp") ? parseTime(String(d.timestamp)) : new_data[key] = +d[key];
+            new_data[key] = (key == "timestamp") ? parseTime(String(d.timestamp)).setFullYear(2015) : new_data[key] = +d[key];
         });
         return new_data; 
       });
@@ -161,17 +171,20 @@ function buildGraph(csv, options, size) {
       bottom: 70,
       left: 160
   },
-  xScale = d3.time.scale().range([MARGINS.left, WIDTH - MARGINS.right])
-    .domain([
-      d3.min(csv, function(d) { return d.timestamp; }),
-      d3.max(csv, function(d) { return d.timestamp; })
-    ]),
+  xScale = d3.time.scale()
+  .range([MARGINS.left, WIDTH])
+  .domain([
+    d3.min(csv, function(d) { return d.timestamp; }),
+    d3.max(csv, function(d) { return d.timestamp; }),
+  ]),
     
-  yScale = d3.scale.linear().range([HEIGHT - MARGINS.bottom, MARGINS.bottom])
-    .domain([yHash[options[1]][0], yHash[options[1]][1]]),
+  yScale = d3.scale.linear()
+  .range([HEIGHT - MARGINS.bottom, MARGINS.bottom])
+  .domain([yHash[options[1]][0], yHash[options[1]][1]]),
   
   xAxis = d3.svg.axis()
-  .scale(xScale),
+  .scale(xScale)
+  .tickPadding(15),
 
   yAxis = d3.svg.axis()
   .scale(yScale)
@@ -209,6 +222,15 @@ function buildGraph(csv, options, size) {
     .attr("height", 100)
     .attr("width", 200);
 
+  var legendY = function(i, block)
+  {
+    if (options[1].indexOf("instant") > -1) 
+      return block ?  20 + i * 25 : 10 + i * 25;
+    else 
+      return block ? HEIGHT - 190 - i * 25 : HEIGHT - 200 - i * 25;
+  };
+
+  console.log(legendY);
   var k = lines[0];
   legend.selectAll('g').data(new Array(size * (options.length - 1)))
     .enter()
@@ -220,18 +242,18 @@ function buildGraph(csv, options, size) {
         return;
       g.append("rect")
         .attr("x", WIDTH - 100)
-        .attr("y", 10 + i * 25)
+        .attr("y", legendY(i, false))
         .attr("width", 10)
         .attr("height", 10)
         .style("fill", getColour(k));
       
       g.append("text")
         .attr("x", WIDTH - 85)
-        .attr("y", 20 + i * 25)
+        .attr("y", legendY(i, true))
         .attr("height", 30)
         .attr("width", 100)
         .style("fill", getColour(k))
-        .text(options[Math.ceil(k++ % (options.length - 1)) + 1].substring(0, 10) + Math.floor(i / (options.length - 1)));
+        .text(options[Math.ceil(k++ % (options.length - 1)) + 1].substring(0, 5) + Math.floor(i / (options.length - 1)));
     });
 
 };
@@ -259,9 +281,9 @@ var download = function() {
 
         // Click on its download button.
         $($(link).children()[0]).trigger("click");
-      }, 4000);
+      }, 3000);
 
-    }, 6000 * i);
+    }, 5000 * i);
 
   } 
 };

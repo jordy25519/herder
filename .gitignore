@@ -7,3 +7,5 @@ public
 log
 app/assets/javascripts/d3.js
 app/assets/javascripts/jquery*
+vendor/
+vendor/bundle
