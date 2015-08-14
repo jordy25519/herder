@@ -143,7 +143,7 @@ var render = function() {
         vis.append('svg:path')
           .attr('d', drawLine(csv))
           .attr('stroke', getColour(k++))
-          .attr('stroke-width', 1.5)
+          .attr('stroke-width', 2.0)
           .attr('fill', 'none');
       });
 
@@ -168,17 +168,14 @@ function buildGraph(csv, options, size) {
   HEIGHT = $("#visualization").height(),
   MARGINS = {
       top: 10,
-      right: 180,
+      right: 10,
       bottom: 70,
-      left: 160
+      left: 180
   },
+
   xScale = d3.time.scale()
-  .range([MARGINS.left, WIDTH])
-  .domain([
-    // d3.min(csv, function(d) { return d.timestamp; }),
-    // d3.max(csv, function(d) { return d.timestamp; }),
-    xMin, xMax
-  ]),
+  .range([0, WIDTH - 10])
+  .domain([xMin, xMax]),
     
   yScale = d3.scale.linear()
   .range([HEIGHT - MARGINS.bottom, MARGINS.bottom])
@@ -186,35 +183,31 @@ function buildGraph(csv, options, size) {
   
   xAxis = d3.svg.axis()
   .scale(xScale)
-  .tickPadding(15),
+  .tickPadding(25),
 
   yAxis = d3.svg.axis()
   .scale(yScale)
   .orient("left");
 
-  vis.append("svg:g")
+  var y = vis.append("svg:g")
+    .attr("class", "y axis")
+    .attr("transform", "translate(1,0)")
+    .call(yAxis);
+
+  var x = vis.append("svg:g")
     .attr("class", "x axis")
     .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
     .call(xAxis);
 
-  vis.append("text")
-    .attr("x", WIDTH/2 )
-    .attr("y",  HEIGHT - MARGINS.bottom + 50 )
-    .style("text-anchor", "middle")
-    .text("Time (Seconds)");
+  // Find widest label. Rescale SVG to stay flush left with the labels.
+  var labelWidth = $(".y.axis").find(".tick").get(-1);
+  labelWidth = labelWidth.getBBox().width;
 
-  vis.append("svg:g")
-    .attr("class", "y axis")
-    .attr("transform", "translate(" + (MARGINS.left) + ",0)")
-    .call(yAxis);
-
-  vis.append("text")
-    .attr("transform", "rotate(-90)")
-    .attr("y", 10)
-    .attr("x", HEIGHT/-2 + MARGINS.bottom)
-    .attr("dy", ".71em")
-    .style("text-anchor", "end")
-    .text($("#filter_options").val());
+  y.attr("transform", "translate(" + labelWidth +", 0)");
+  x.attr("transform", "translate(" + labelWidth + "," + (HEIGHT - MARGINS.bottom) + ")");
+  xScale = d3.time.scale()
+    .range([labelWidth + 2, WIDTH - 10])
+    .domain([xMin, xMax]);
 
   // Add legend. 
   var legend = vis.append("g")
@@ -223,6 +216,14 @@ function buildGraph(csv, options, size) {
     .attr("y", 25)
     .attr("height", 100)
     .attr("width", 200);
+
+  // Add title. 
+  var title = vis.append("text")
+    .attr("x", WIDTH/2)
+    .attr("y", 30)
+    .style("text-anchor", "middle")
+    .text($("#filter_options").val() + " x Time (Wall Clock)")
+    .style("text-decoration", "underline");
 
   var legendY = function(i, block)
   {
@@ -243,19 +244,19 @@ function buildGraph(csv, options, size) {
       if($("#range").val() != "" && $.inArray(i, lines) == -1)
         return;
       g.append("rect")
-        .attr("x", WIDTH - 100)
+        .attr("x", WIDTH - 200)
         .attr("y", legendY(i, false))
         .attr("width", 10)
         .attr("height", 10)
         .style("fill", getColour(k));
       
       g.append("text")
-        .attr("x", WIDTH - 85)
+        .attr("x", WIDTH - 185)
         .attr("y", legendY(i, true))
         .attr("height", 30)
         .attr("width", 100)
-        .style("fill", getColour(k))
-        .text(options[Math.ceil(k++ % (options.length - 1)) + 1].substring(0, 5) + Math.floor(i / (options.length - 1)));
+        .style("fill", getColour(k++))
+        .text("Container" + Math.floor(i / (options.length - 1)));
     });
 
 };
