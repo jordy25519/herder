@@ -24,6 +24,7 @@ def interperet
 end
 
 # Log and collect resource usage stats on herd start up.
+@start_time = Time.now
 def benchmark
 	herd_name = ARGV[1]
 	dirty = (ARGV[2] === nil)
@@ -45,6 +46,7 @@ def benchmark
 	run = herd_name + "_size" + @herds[herd_name]["size"].to_s + "_" + (Time.now.strftime "date%F_time%H-%M")
 	FileUtils.mkdir_p "tests/#{run}"
 
+	@start_time = Time.now
 	threads = []
 	@herds[herd_name]["ids"].each_with_index do |id, n|
 	 	system("docker start #{id}")
@@ -66,7 +68,7 @@ def benchmark
 				File.open("tests/#{run}/#{herd_name}#{n}.csv", "a") do |f|
 					# Write headerline on first run.
     			f.puts "timestamp,cpu_user,cpu_system,cpu_time,rchar,wchar,syscr,syscw,rbytes,wbytes,cbytes,rss" if f.size == 0
-					time = Time.now.strftime "%-m/%-d %H:%M:%S.%L"
+					time = Time.now - @start_time
 					f.puts "#{time},#{cpu_split},#{cpu_usage},#{proc_io},#{mem}"
 				end
 			end
