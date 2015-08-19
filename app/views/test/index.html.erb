@@ -15,17 +15,14 @@
 </body>
 <script>
 
+// Main graph SVG.
+var vis = vis == null ? null : vis;
 var key = ""; //Dirty hack variable for passing data.
-var vis = vis == null ? null : vis; // Main graph SVG.
-
 var dom = Array.apply(null, {length: 12}).map(Number.call, Number);
 var sizes = <%= @sizes.to_s.html_safe %>; // List of file count in each test directory.
 var colourBrewer = d3.scale.linear().domain(dom).range(colorbrewer.Paired[12]); // Generates colour palette.
-var parseTime = d3.time.format("%S.%L").parse; // Formats CSV timestamps.
-
-var yHash  = {};
 var lines = [];
-var xMax = "";
+var xMax, yMin, yMax;
 
 var render = function() {
 
@@ -60,7 +57,7 @@ var render = function() {
   else
     return null;
   
-    // Get number of test files in selected test run.
+  // Get number of test files in selected test run.
   var size = +sizes[$("#tests")[0].selectedIndex];
 
   // Limit files to draw.
@@ -82,41 +79,48 @@ var render = function() {
   console.log("lines: " + lines);
 
   // Find the min and max values in all CSVs to determine X and Y axis scale.
-  // Intialise dates with extreme values.
-  xMin = Number.MAX_SAFE_INTEGER;
+  // Intialise with extreme values.
   xMax = Number.MIN_SAFE_INTEGER;
-  yHash = {};
-  for(var i = 1, l = options.length; i < l; i++)
-    yHash[options[i]] = [0, 0];
+  yMin = Number.MAX_SAFE_INTEGER;
+  yMax = Number.MIN_SAFE_INTEGER;
 
+  var taskQueue = queue(1);
   for (var i = 0; i < size; i++){
     var file = "/tests/" + $("#tests").val() + "aviarcs" + i + ".csv";
-
-    d3.csv(file, function(csv) {
-      var max = d3.max(csv, function(d){ return +d.timestamp });
-      xMax = (max > xMax) ? max : xMax;
-      console.log(xMax);
-
-      csv.forEach(function(d) {
-        for(var i = 1, l = options.length; i < l; i++) {
-          var min = yHash[options[i]][0];
-          var max = yHash[options[i]][1];
-          var test = +d[options[i]];
-          yHash[options[i]][0] = (test < min) ? test : min ;
-          yHash[options[i]][1] = (test > max) ? test : max ;
-        };
-      });
-    });
+    taskQueue.defer(d3.csv, file);
   };
-  console.log(yHash);
+  
+  // Wait for all CSVs to load.
+  taskQueue.awaitAll(function(error, files){ 
+    files.forEach(function(csv){
+        var timestamp = +(csv[csv.length - 1].timestamp);
+        xMax = (timestamp > xMax) ? timestamp : xMax;
 
-  // Load each CSV in selected test run.
+        var csvStart = +(csv[0][options[1]]);
+        var csvEnd = +(csv[csv.length - 1][options[1]]);
+        yMin = (csvStart < yMin) ? csvStart : yMin;
+        yMax = (csvEnd > yMax) ? csvEnd : yMax;
+    });
+    console.log("xMax: " + xMax);
+    console.log("yMin: " + yMin + " yMax: " + yMax);
+    
+    // Build graph structure then plot lines.
+    queue()
+      .defer(buildGraph, options, size)
+      .await(plotGraph(options, size));
+  });
+
+};
+
+// Load each CSV and plot as a line.
+function plotGraph(options, size){
+
+  var svg = d3.select("#visualization");
   var k = lines[0];
   for (var i = 0; i < size; i++) {
     if($("#range").val() != "" && $.inArray(i, lines) == -1) continue;
 
     var file = "/tests/" + $("#tests").val() + "aviarcs" + i + ".csv";
-
     d3.csv(file, function(csv) {
       
       csv = csv.map(function(d) {
@@ -127,17 +131,17 @@ var render = function() {
         return new_data; 
       });
 
-      // Construct main graph. Do once.
-      if(vis == null) buildGraph(csv, options, size);
-
-      var drawLine = d3.svg.line().x(function(d) { return xScale(d.timestamp); }).y(function(d) { return yScale(d[key]); }).interpolate("linear");
+      var drawLine = d3.svg.line()
+        .x(function(d) { return xScale(d.timestamp); })
+        .y(function(d) { return yScale(d[key]); })
+        .interpolate("linear");
 
       // Plot line for each CSV column.
       options.forEach(function(o)
       {
         if(o == "timestamp") return;
         key = o;
-        vis.append('svg:path')
+        svg.append('svg:path')
           .attr('d', drawLine(csv))
           .attr('stroke', getColour(k++))
           .attr('stroke-width', 2.0)
@@ -147,18 +151,10 @@ var render = function() {
     }); //d3.csv
 
   } // for
- 
-  vis = null;
-
-};// function
-
-// Helper function to return colour code.
-function getColour(i){
-  return colourBrewer(i);
 }
 
 // Construct SVG graph - axis, labels, etc.
-function buildGraph(csv, options, size) {
+function buildGraph(options, size) {
 
   vis = d3.select("#visualization"),
   WIDTH = $("#visualization").width(),
@@ -173,10 +169,10 @@ function buildGraph(csv, options, size) {
   xScale = d3.scale.linear()
   .range([0, WIDTH])
   .domain([0.0, xMax]),
-    
+  
   yScale = d3.scale.linear()
   .range([HEIGHT - MARGINS.bottom, MARGINS.bottom])
-  .domain([yHash[options[1]][0], yHash[options[1]][1]]),
+  .domain([yMin, yMax]),
   
   xAxis = d3.svg.axis()
   .outerTickSize(2)
@@ -202,14 +198,13 @@ function buildGraph(csv, options, size) {
   var labelWidth = $(".y.axis").find(".tick").get(-1);
   labelWidth = labelWidth.getBBox().width + 3;
 
-  console.log("xMax: " + xMax);
-
   y.attr("transform", "translate(" + labelWidth +", 0)");
   x.attr("transform", "translate(" + labelWidth + "," + (HEIGHT - MARGINS.bottom) + ")");
   xScale = d3.scale.linear()
     .range([labelWidth + 2, WIDTH])
     .domain([0.0, xMax]);
 
+  console.log("Final Xmax: " + xMax);
   // Add legend. 
   var legend = vis.append("g")
     .attr("class", "legend")
@@ -230,11 +225,10 @@ function buildGraph(csv, options, size) {
   {
     if (options[1].indexOf("instant") > -1) 
       return block ?  20 + i * 25 : 10 + i * 25;
-    else 
-      return block ? HEIGHT - 190 - i * 25 : HEIGHT - 200 - i * 25;
+    else
+      return block ? HEIGHT - 490 - i * 25 : HEIGHT - 500 - i * 25;
   };
 
-  console.log(legendY);
   var k = lines[0];
   legend.selectAll('g').data(new Array(size * (options.length - 1)))
     .enter()
@@ -245,25 +239,28 @@ function buildGraph(csv, options, size) {
       if($("#range").val() != "" && $.inArray(i, lines) == -1)
         return;
       g.append("rect")
-        .attr("x", WIDTH - 200)
+        .attr("x", MARGINS.right + 200)
         .attr("y", legendY(i, false))
         .attr("width", 10)
         .attr("height", 10)
         .style("fill", getColour(k));
       
       g.append("text")
-        .attr("x", WIDTH - 185)
+        .attr("x", MARGINS.right + 225)
         .attr("y", legendY(i, true))
         .attr("height", 30)
         .attr("width", 100)
         .style("fill", getColour(k++))
-        .text("Container" + Math.floor(i / (options.length - 1)));
+        .text("c" + (i + 1));
     });
-
 };
 
+// Helper function to return colour code.
+function getColour(i){
+  return colourBrewer(i);
+}
+
 // Render each line/CSV file one by one and download.
-var k = 0;
 var download = function() {
   console.log("downloading");
   var size = +sizes[$("#tests")[0].selectedIndex];
@@ -291,6 +288,8 @@ var download = function() {
 
   } 
 };
+
+var k = 0;
 
 $("#render").click(render);
 $("#download-svgs").click(download);
