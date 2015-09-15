@@ -1,4 +1,4 @@
-#!/bin/ruby
+#!/usr/pkg/bin/ruby
 require 'fileutils'
 require 'yaml'
 require './lib/ext/string'
@@ -43,9 +43,8 @@ def benchmark
   end
   
   # Create folder for test run.
-	run = herd_name + "_size" + @herds[herd_name]["size"].to_s + "_" + (Time.now.strftime "date%F_time%H-%M")
-	FileUtils.mkdir_p "tests/#{run}"
-
+	run = herd_name + @herds[herd_name]["size"].to_s
+  FileUtils.mkdir_p "tests/#{run}"
 	@start_time = Time.now
 	threads = []
 	@herds[herd_name]["ids"].each_with_index do |id, n|
@@ -56,20 +55,21 @@ def benchmark
 
 		threads << Thread.new(id.chomp, n, pids[id]){|id, n, pid|
 			until(%x[docker logs --tail=3 #{id}].include? 'Aviarc startup complete')
-				#blkio_service_bytes = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_service_bytes").to_csv
-				#blkio_serviced = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_serviced").to_csv
-				#blkio_queued = IO.read("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.io_queued").to_csv
-        #proc_status = `grep -Po "(?<=State:\t)[A-Z]" /proc/#{pid}/status`.chomp
-        cpu_split = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.stat").to_csv
+				proc_io = IO.readlines("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.throttle.io_service_bytes")
+                                 .select{|e| e.include? "254:#{n + 1}"}
+                                 .map{|e| e[/[0-9]+$/]}
+        #cpu_split = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.stat").to_csv
         cpu_usage = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.usage").to_csv
-        proc_io = IO.read("/proc/#{pid}/io").to_csv
-        mem = IO.readlines("/sys/fs/cgroup/memory/system.slice/docker-#{id}.scope/memory.stat")[1].to_csv
+        #proc_io = IO.read("/proc/#{pid}/io").to_csv
+        memory = IO.readlines("/sys/fs/cgroup/memory/system.slice/docker-#{id}.scope/memory.stat")
+        cache = memory[0].to_csv
+        rss = memory[1].to_csv
 
-				File.open("tests/#{run}/#{herd_name}#{n}.csv", "a") do |f|
+				File.open("tests/#{run}/#{n}.csv", "a") do |f|
 					# Write headerline on first run.
-    			f.puts "timestamp,cpu_user,cpu_system,cpu_time,rchar,wchar,syscr,syscw,rbytes,wbytes,cbytes,rss" if f.size == 0
+    			f.puts "timestamp,cpu_time,rbytes,wbytes,sbytes,abytes,rss,cache" if f.size == 0
 					time = Time.now - @start_time
-					f.puts "#{time},#{cpu_split},#{cpu_usage},#{proc_io},#{mem}"
+					f.puts "#{time},#{cpu_usage},#{proc_io[0]},#{proc_io[1]},#{proc_io[2]},#{proc_io[3]},#{rss},#{cache}"
 				end
 			end
 			puts "Thread #{n} exited."
@@ -79,9 +79,6 @@ def benchmark
 	# Wait for all threads to finish.
 	threads.each {|t| t.join}
   puts "Benchmarking complete."
-  sleep 5
-  
-  PostProcess.new.execute(run)
   
 end
 

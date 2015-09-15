@@ -34,26 +34,18 @@ var render = function() {
   var options = ["timestamp"];
   if(filter_options == "Memory (bytes)")
     options.push("rss");
-  else if(filter_options == "Memory instant (bytes)")
-    options.push("rss_instant")
-  else if(filter_options == "CPU usage (USER_HZ)")
-    options.push("cpu_system", "cpu_user");
-  else if(filter_options == "CPU time (nanoseconds)")
+  else if(filter_options == "Memory Cache (bytes)")
+    options.push("cache");
+  else if(filter_options == "CPU Time (nanoseconds)")
     options.push("cpu_time");
-  else if(filter_options == "CPU instant (nanoseconds)")
-    options.push("cpu_time_instant");
-  else if(filter_options == "IO read (bytes)")
-    options.push("rchar");
-  else if(filter_options == "IO write (bytes)")
-    options.push("wchar");
-  else if(filter_options == "IO read instant (bytes)")
-    options.push("rchar_instant");
-  else if(filter_options == "IO write instant (bytes)")
-    options.push("wchar_instant");
-  else if(filter_options == "IO unpaged read (bytes)") 
+  else if(filter_options == "IO Read (bytes)")
     options.push("rbytes");
-  else if(filter_options == "IO unpaged write (bytes)") 
+  else if(filter_options == "IO Write (bytes)")
     options.push("wbytes");
+  else if(filter_options == "IO Synchronous (bytes)")
+    options.push("abytes");
+  else if(filter_options == "IO Asynchronous (bytes)")
+    options.push("sbytes");
   else
     return null;
   
@@ -86,7 +78,7 @@ var render = function() {
 
   var taskQueue = queue(1);
   for (var i = 0; i < size; i++){
-    var file = "/tests/" + $("#tests").val() + "aviarcs" + i + ".csv";
+    var file = "/tests/" + $("#tests").val() + i + ".csv";
     taskQueue.defer(d3.csv, file);
   };
   
@@ -120,7 +112,7 @@ function plotGraph(options, size){
   for (var i = 0; i < size; i++) {
     if($("#range").val() != "" && $.inArray(i, lines) == -1) continue;
 
-    var file = "/tests/" + $("#tests").val() + "aviarcs" + i + ".csv";
+    var file = "/tests/" + $("#tests").val() + i + ".csv";
     d3.csv(file, function(csv) {
       
       csv = csv.map(function(d) {
