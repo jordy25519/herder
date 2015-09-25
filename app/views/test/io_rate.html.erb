@@ -6,8 +6,7 @@
 </style>
 <body>
   <%= select_tag :tests, options_for_select(@tests) %>
-  <%= select_tag :filter_options, options_for_select(filter_options) %>
-  <input id="range"/>
+  <%= select_tag :filter_options, options_for_select(io_rate_options) %>
   <button id="render">render</button>
   <button id="download-svgs">Download SVGs</button>
   <div><br><br></div>
@@ -19,9 +18,7 @@
 var vis = vis == null ? null : vis;
 var key = ""; //Dirty hack variable for passing data.
 var dom = Array.apply(null, {length: 12}).map(Number.call, Number);
-var sizes = <%= @sizes.to_s.html_safe %>; // List of file count in each test directory.
 var colourBrewer = d3.scale.linear().domain(dom).range(colorbrewer.Paired[12]); // Generates colour palette.
-var lines = [];
 var xMax, yMin, yMax;
 
 var render = function() {
@@ -32,43 +29,47 @@ var render = function() {
   // Filter CSV data by category e.g. Memory, CPU.
   var filter_options = $("#filter_options").val().trim();
   var options = ["timestamp"];
-  if(filter_options == "Memory (bytes)")
-    options.push("rss");
-  else if(filter_options == "Memory Cache (bytes)")
-    options.push("cache");
-  else if(filter_options == "CPU Time (nanoseconds)")
-    options.push("cpu_time");
-  else if(filter_options == "IO Read (bytes)")
-    options.push("rbytes");
-  else if(filter_options == "IO Write (bytes)")
-    options.push("wbytes");
-  else if(filter_options == "IO Synchronous (bytes)")
-    options.push("abytes");
-  else if(filter_options == "IO Asynchronous (bytes)")
-    options.push("sbytes");
-  else
-    return null;
-  
-  // Get number of test files in selected test run.
-  var size = +sizes[$("#tests")[0].selectedIndex];
-
-  // Limit files to draw.
-  var range = $("#range").val();
-  if(range.indexOf(",") > -1)
-    lines = range.split(",").map(Number);
-  else if(range.indexOf("-") > -1){
-    var r = range.split("-").map(Number);
-    lines = Array.apply(null, {length: r[1]}).map(Number.call, Number).slice(r[0]);
+  switch(filter_options){
+    case "Read IO (requests)":
+      options.push("rio");
+      break;
+    case "Read Merges (requests)":
+      options.push("rmerge");
+      break;
+    case "Read Sectors (sectors)":
+      options.push("rsect");
+      break;
+    case "Read Ticks (milliseconds)":
+      options.push("rtick");
+      break;
+    case "Write IO (requests)":
+      options.push("wio");
+      break;
+    case "Write Merges (requests)":
+      options.push("wmerge");
+      break;
+    case "Write Sectors (sectors)":
+      options.push("wsect");
+      break;
+    case "Write Ticks (milliseconds)":
+      options.push("wtick");
+      break;
+    case "In Flight (requests)":
+      options.push("running");
+      break;
+    case "IO Ticks (milliseconds)":
+      options.push("active");
+      break;
+    case "Time in Queue (milliseconds)":
+      options.push("wait");
+      break;
+    case "Load Average":
+      options.push("load_avg");
+      break;
+    default:
+      break;
   }
-  else if(range.length == 1)
-    lines = [Number(range)];
-  else{
-    lines = Array.apply(null, {length: size}).map(Number.call, Number);
-  }
-  
   console.log("options:" + options);
-  console.log("size: " + size);
-  console.log("lines: " + lines);
 
   // Find the min and max values in all CSVs to determine X and Y axis scale.
   // Intialise with extreme values.
@@ -77,10 +78,8 @@ var render = function() {
   yMax = Number.MIN_SAFE_INTEGER;
 
   var taskQueue = queue(1);
-  for (var i = 0; i < size; i++){
-    var file = "/tests/" + $("#tests").val() + i + ".csv";
-    taskQueue.defer(d3.csv, file);
-  };
+  var file = "/tests/" + $("#tests").val() + "iorate.csv";
+  taskQueue.defer(d3.csv, file);
   
   // Wait for all CSVs to load.
   taskQueue.awaitAll(function(error, files){ 
@@ -98,51 +97,47 @@ var render = function() {
     
     // Build graph structure then plot lines.
     queue()
-      .defer(buildGraph, options, size)
-      .await(plotGraph(options, size));
+      .defer(buildGraph, options)
+      .await(plotGraph(options, 1));
   });
-
-};
+  
+}
 
 // Load each CSV and plot as a line.
-function plotGraph(options, size){
+function plotGraph(options){
 
   var svg = d3.select("#visualization");
-  var k = lines[0];
-  for (var i = 0; i < size; i++) {
-    if($("#range").val() != "" && $.inArray(i, lines) == -1) continue;
+  var k = 0;
 
-    var file = "/tests/" + $("#tests").val() + i + ".csv";
-    d3.csv(file, function(csv) {
-      
-      csv = csv.map(function(d) {
-        new_data = {};
-        options.forEach(function(key){
-            new_data[key] = +d[key];
-        });
-        return new_data; 
+  var file = "/tests/" + $("#tests").val() + "iorate.csv";
+  d3.csv(file, function(csv) {  
+    csv = csv.map(function(d) {
+      new_data = {};
+      options.forEach(function(key){
+        new_data[key] = +d[key];
       });
+      return new_data; 
+  });
 
-      var drawLine = d3.svg.line()
-        .x(function(d) { return xScale(d.timestamp); })
-        .y(function(d) { return yScale(d[key]); })
-        .interpolate("linear");
+  var drawLine = d3.svg.line()
+    .x(function(d) { return xScale(d.timestamp); })
+    .y(function(d) { return yScale(d[key]); })
+    .interpolate("linear");
 
-      // Plot line for each CSV column.
-      options.forEach(function(o)
-      {
-        if(o == "timestamp") return;
-        key = o;
-        svg.append('svg:path')
-          .attr('d', drawLine(csv))
-          .attr('stroke', getColour(k++))
-          .attr('stroke-width', 2.0)
-          .attr('fill', 'none');
-      });
+  // Plot line for each CSV column.
+  options.forEach(function(o)
+  {
+    if(o == "timestamp") return;
+    key = o;
+    svg.append('svg:path')
+    .attr('d', drawLine(csv))
+    .attr('stroke', getColour(k++))
+    .attr('stroke-width', 2.0)
+    .attr('fill', 'none');
+  });
 
-    }); //d3.csv
+}); //d3.csv
 
-  } // for
 }
 
 // Construct SVG graph - axis, labels, etc.
@@ -188,7 +183,7 @@ function buildGraph(options, size) {
 
   // Find widest label on Y-axis. Rescale SVG to stay flush left with the labels.
   var labelWidth = $(".y.axis").find(".tick").get(-1);
-  labelWidth = labelWidth.getBBox().width + 30;
+  labelWidth = labelWidth.getBBox().width + 3;
 
   y.attr("transform", "translate(" + labelWidth +", 0)");
   x.attr("transform", "translate(" + labelWidth + "," + (HEIGHT - MARGINS.bottom) + ")");
@@ -215,21 +210,17 @@ function buildGraph(options, size) {
 
   var legendY = function(i, block)
   {
-    if (options[1].indexOf("instant") > -1) 
-      return block ?  20 + i * 25 : 10 + i * 25;
-    else
       return block ? HEIGHT - 490 - i * 25 : HEIGHT - 500 - i * 25;
   };
 
-  var k = lines[0];
-  legend.selectAll('g').data(new Array(size * (options.length - 1)))
+  var k = 0;
+  console.log(options + " " + size);
+  legend.selectAll('g').data(new Array(1 * (options.length - 1)))
     .enter()
     .append('g')
     .each(function(d, i) {
       var g = d3.select(this);
       
-      if($("#range").val() != "" && $.inArray(i, lines) == -1)
-        return;
       g.append("rect")
         .attr("x", MARGINS.right + 200)
         .attr("y", legendY(i, false))
@@ -245,7 +236,7 @@ function buildGraph(options, size) {
         .style("fill", getColour(k++))
         .text("c" + (i + 1));
     });
-};
+}
 
 // Helper function to return colour code.
 function getColour(i){
@@ -254,34 +245,18 @@ function getColour(i){
 
 // Render each line/CSV file one by one and download.
 var download = function() {
-  console.log("downloading");
-  var size = +sizes[$("#tests")[0].selectedIndex];
+    console.log("downloading");
 
-  for (var i = 0; i < size; i++) {
-
-    // Wait for rendering to complete then download SVG.
     setTimeout(function() {
-      
-      $("#range").val(String(k++));
-      $("#render").trigger("click");
+      // Click the graph to activate svg-crowbar download links.
+      $("#visualization").trigger("click");
+      // Get svg-crowbar link for main SVG.
+      var link = $(".svg-crowbar").filter(function(){ return $(this).text().indexOf("SVG #0") > -1 })[1];
+      // Click on its download button.
+      $($(link).children()[0]).trigger("click");
+    }, 3000);
 
-      setTimeout(function() {
-        // Click the graph to activate svg-crowbar download links.
-        $("#visualization").trigger("click");
-
-        // Get svg-crowbar link for main SVG.
-        var link = $(".svg-crowbar").filter(function(){ return $(this).text().indexOf("SVG #0") > -1 })[1];
-
-        // Click on its download button.
-        $($(link).children()[0]).trigger("click");
-      }, 3000);
-
-    }, 5000 * i);
-
-  } 
-};
-
-var k = 0;
+}
 
 $("#render").click(render);
 $("#download-svgs").click(download);

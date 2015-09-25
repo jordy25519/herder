@@ -26,11 +26,12 @@ end
 # Log and collect resource usage stats on herd start up.
 @start_time = Time.now
 def benchmark
-	herd_name = ARGV[1]
-	dirty = (ARGV[2] === nil)
-	type = ARGV[3]
+  herd_name = ARGV[1]
+  dirty = (ARGV[2] === nil)
+  type = ARGV[3]
   pids = Hash.new
-	
+  @threads = []
+
   unless dirty
     clean
     create
@@ -43,41 +44,55 @@ def benchmark
   end
   
   # Create folder for test run.
-	run = herd_name + @herds[herd_name]["size"].to_s
+  run = herd_name + @herds[herd_name]["size"].to_s
   FileUtils.mkdir_p "tests/#{run}"
-	@start_time = Time.now
-	threads = []
+
+  @threads << Thread.new(@start_time){ |start_time|
+	base_stats = IO.read("/sys/block/sda/stat").chomp.split.map &:to_i
+	until(@threads.select{ |t| t.alive? }.count == 1 and @threads.count > 1)
+	  iostats = IO.read("/sys/block/sda/stat").chomp.split.map &:to_i
+	  counters = base_stats.each_with_index.map{ |e, i | iostats[i] - e }
+	  counters = counters.join(",")
+          load_avg = `uptime | cut -d "," -f4`[/[0-9]+.[0-9]+/]
+	  File.open("tests/#{run}/iorate.csv", "a") do |f|
+		# Write headerline on first run.
+   		f.puts "timestamp,rio,rmerge,rsect,rtick,wio,wmerge,wsect,wtick,running,active,wait,load_avg" if f.size == 0
+		time = Time.now - start_time
+		f.puts "#{time},#{counters},#{load_avg}"
+        end
+    end
+    }
+	# Begin threads for container stat collection.
 	@herds[herd_name]["ids"].each_with_index do |id, n|
 	 	system("docker start #{id}")
 		pids[id] = `docker inspect -f '{{ .State.Pid }}' #{id}`.chomp
 		puts "docker start #{id} Pid: #{pids[id]}"
 		puts "Starting stats collection for container #{n} id:#{id}"
+    
+		@threads << Thread.new(id.chomp, n, pids[id]){|id, n, pid|
+		  until(%x[docker logs --tail=3 #{id}].include? 'Aviarc startup complete')
+	    proc_io = IO.readlines("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.throttle.io_service_bytes")
+              .select{|e| e.include? "254:#{n + 1}"}.map{|e| e[/[0-9]+$/]}
+            #cpu_split = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.stat").to_csv
+             cpu_usage = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.usage").to_csv
+             #proc_io = IO.read("/proc/#{pid}/io").to_csv
+             memory = IO.readlines("/sys/fs/cgroup/memory/system.slice/docker-#{id}.scope/memory.stat")
+             cache = memory[0].to_csv
+             rss = memory[1].to_csv
 
-		threads << Thread.new(id.chomp, n, pids[id]){|id, n, pid|
-			until(%x[docker logs --tail=3 #{id}].include? 'Aviarc startup complete')
-				proc_io = IO.readlines("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.throttle.io_service_bytes")
-                                 .select{|e| e.include? "254:#{n + 1}"}
-                                 .map{|e| e[/[0-9]+$/]}
-        #cpu_split = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.stat").to_csv
-        cpu_usage = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.usage").to_csv
-        #proc_io = IO.read("/proc/#{pid}/io").to_csv
-        memory = IO.readlines("/sys/fs/cgroup/memory/system.slice/docker-#{id}.scope/memory.stat")
-        cache = memory[0].to_csv
-        rss = memory[1].to_csv
-
-				File.open("tests/#{run}/#{n}.csv", "a") do |f|
-					# Write headerline on first run.
-    			f.puts "timestamp,cpu_time,rbytes,wbytes,sbytes,abytes,rss,cache" if f.size == 0
-					time = Time.now - @start_time
-					f.puts "#{time},#{cpu_usage},#{proc_io[0]},#{proc_io[1]},#{proc_io[2]},#{proc_io[3]},#{rss},#{cache}"
-				end
-			end
-			puts "Thread #{n} exited."
-		}
+		    File.open("tests/#{run}/#{n}.csv", "a") do |f|
+		      # Write headerline on first run.
+    		  f.puts "timestamp,cpu_time,rbytes,wbytes,sbytes,abytes,rss,cache" if f.size == 0
+			  time = Time.now - @start_time
+			  f.puts "#{time},#{cpu_usage},#{proc_io[0]},#{proc_io[1]},#{proc_io[2]},#{proc_io[3]},#{rss},#{cache}"
+		    end
+	      end
+	      puts "Thread #{n} exited."
+	    }
 	end
-	
-	# Wait for all threads to finish.
-	threads.each {|t| t.join}
+
+  # Wait for all threads to finish.
+  @threads.each {|t| t.join}
   puts "Benchmarking complete."
   
 end
@@ -116,7 +131,7 @@ def create
 
 	puts "Creating herd..."
 	size.times do |n|
-		cmd = "docker create --restart=always --name #{friendly_name}#{n} #{image} #{run_args}"
+		cmd = "docker create --restart=always --cpuset-cpus=\"0,1,2,3\" --name #{friendly_name}#{n} #{image} #{run_args}"
 		@herds[herd_name]["ids"][n] = `#{cmd}`
 		puts cmd
 	end
