@@ -11,13 +11,12 @@ require 'docker'
 def interperet
 	cmd = ARGV[0]
 	case (cmd)
-		when '-b','--build' then build
 		when '-c','--create' then create
 		when '--clean' then clean
 		when '--help',nil then help
 		when '-l','--list' then list
 		when '-r','--run' then run
-		when '-s','--bench' then benchmark
+		when '-b','--bench' then benchmark
 		else puts "Command: \"#{cmd}\" is unrecognized."
 	end
 end
@@ -139,17 +138,6 @@ private def iostat
   }
 end
 
-# Build an image from dockerfile.
-def build
-  image_name = ARGV[1]
-  docker_file_path = ARGV[2]
-
-  cmd = "docker build --rm=true --tag=\"#{image_name}\" #{docker_file_path}"
-  puts "Building image..."
-  `#{cmd}`
-  puts cmd
-end
-
 # Clean all docker containers.
 def clean
  puts "Cleaning herds..."
@@ -223,14 +211,10 @@ def help
            (__)\\       )\\/\\
                 ||----w |
                 ||     ||"
-	puts "Build a Dockerfile:"
-	puts "  herder -b <repository/image_name> <path_to_dockerfile>"
-	puts ""
 	puts "Benchmark container startup:"
-    puts " sudo herder --bench (<herd_name>|<image_name> <count>)[ options]"
+    puts "  herder --bench (<herd_name>|<image_name> <count>)[ options]"
     puts "-d int, delay | -lt, log tag delay | -vm, vmstat monitoring | -io, disk device monitoring"
     puts "<herd_name> will use an existing herd. <image_name> <count> will create a new herd."
-    puts " *Requires root privilleges."
     puts "Clean all Docker containers:"
 	puts "  herder --clean"
 	puts ""
@@ -238,7 +222,7 @@ def help
 	puts "  herder -c <repository/image_name> <count>"
 	puts ""
 	puts "List herds:"
-	puts " herder -l"
+	puts "  herder -l"
 	puts ""
 	puts "Run command over a herd:"
   puts "  herder -r <herd_name> <docker_command>"
