@@ -159,7 +159,7 @@ function buildGraph(options, size) {
   
   yScale = d3.scale.linear()
   .range([HEIGHT - MARGINS.bottom, MARGINS.bottom])
-  .domain([yMin, yMax]),
+  .domain([yMin, yMax * 1.5]),
   
   xAxis = d3.svg.axis()
   .outerTickSize(2)

@@ -5,7 +5,7 @@ class TestController < ApplicationController
 		# Count the number of files in each test.
 		@sizes = Array.new
 		Dir.glob('./tests/*').each do |d|
-			@sizes << Dir.glob(d + "/*").count - 1
+			@sizes << Dir.glob(d + "/*.csv").count
 		end
 		
 		@tests =  Dir.glob('./tests/*')
