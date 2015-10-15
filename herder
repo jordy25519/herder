@@ -29,10 +29,10 @@ def benchmark
 
   # Parse Arguments.
   ARGV.slice(3, ARGV.count).each do |arg|
-   delay = ARGV[3].to_s[/[0-9]+/].to_i if args.include? "-d"
-   io_on = true if args.include? "-io"
-   vm_on = true if args.include? "-vm"
-   log_tag_on = true if args.include? "-lt"
+   delay = ARGV[3].to_s[/[0-9]+/].to_i if arg.include? "-d"
+   io_on = true if arg.include? "-io"
+   vm_on = true if arg.include? "-vm"
+   log_tag_on = true if arg.include? "-lt"
   end
 
   pids = Hash.new
@@ -89,7 +89,7 @@ def benchmark
 	}
       
     sleep delay if delay
-    log_tag(id.chomp, "Create Command Registry") if log_tag_on
+    log_tag(id.chomp, "Creating Command Registry") if log_tag_on
   end
 
   # Wait for all container threads to finish and exit monitoring threads.
@@ -97,6 +97,7 @@ def benchmark
   iostat_thread.exit if io_on
   vmstat_thread.exit if vm_on
   puts "Benchmarking complete."
+  system("pkill vmstat") # vmstat is long running need to kill it.
 end
 
 # Pause bencmarking execution until container logs specified event.
@@ -104,7 +105,7 @@ private def log_tag(id, tag)
   # Block until "Create Command registry" event.
   puts "Waiting for command registry"
   container = Docker::Container.get(id)
-  until(container.logs(stdout: true)[RegExp.new tag])
+  until(container.logs(stdout: true)[/#{tag}/])
     # Do nothing until create registry event.
   end
 end
@@ -161,7 +162,7 @@ def create
 
   puts "Creating herd..."
   size.times do |n|
-    cmd = "docker create --cpuset-cpus=\"0,1\" --name #{friendly_name}#{n}  #{image}"
+    cmd = "docker create --cpuset-cpus=\"0,1\" --name #{friendly_name}#{n} #{image}"
     @herds[herd_name]["ids"][n] = `#{cmd}`
     puts cmd
   end
