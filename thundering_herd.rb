@@ -3,14 +3,14 @@ require 'fileutils'
 @group = ARGV[0].chomp
 @upper = ARGV[1].chomp.to_i + 1
 @tests = 3
-@image_name = "aviarc-tagged"
+@image_name = "aviarc-minimal"
 
 def test(test_name, test_index)
  n = 1
  puts "textindex" + test_index.to_s
  FileUtils.mkdir("tests/#{test_name}#{test_index}")
  while(n < @upper)
-  `./herder --bench #{@image_name} #{n} -lt`
+  `./herder --bench #{@image_name} #{n} -d10 -vm -io`
   dur = []
   fin = []
   FileUtils.mv("tests/#{@image_name}s#{n}", "tests/#{test_name}#{test_index}/")

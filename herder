@@ -70,17 +70,18 @@ def benchmark
       container = Docker::Container.get(id.chomp)
             
       until(container.logs(stdout: true)[/Aviarc startup complete/])
-        proc_io = IO.readlines("/sys/fs/cgroup/blkio/system.slice/docker-#{id}.scope/blkio.throttle.io_service_bytes").select{|e| e.include? "254:#{n + 1}"}.map{|e| e[/[0-9]+$/]}
-        cpu_usage = IO.read("/sys/fs/cgroup/cpu/system.slice/docker-#{id}.scope/cpuacct.usage").to_csv
-        memory = IO.readlines("/sys/fs/cgroup/memory/system.slice/docker-#{id}.scope/memory.stat")
+        proc_io = IO.readlines("/cgroup/blkio/docker/#{id}/blkio.throttle.io_service_bytes").select{|e| e.include? "253:#{n + 1}"}.map{|e| e[/[0-9]+$/]}
+        cpu_usage = IO.read("/cgroup/cpu/docker/#{id}/cpu.stat").to_csv
+        memory = IO.readlines("/cgroup/memory/docker/#{id}/memory.stat")
         cache = memory[0].to_csv
         rss = memory[1].to_csv
+        writeback = memory[8].to_csv
 
-	    File.open("tests/#{run}/#{n}.csv", "a") do |f|
+	File.open("tests/#{run}/#{n}.csv", "a") do |f|
           #Write headerline on first run.
-          f.puts "timestamp,cpu_time,rbytes,wbytes,sbytes,abytes,rss,cache" if f.size == 0
+          f.puts "timestamp,cpu_time,rbytes,wbytes,sbytes,abytes,rss,cache,writeback" if f.size == 0
           time = Time.now - @start_time
-	      f.puts "#{time},#{cpu_usage},#{proc_io[0]},#{proc_io[1]},#{proc_io[2]},#{proc_io[3]},#{rss},#{cache}"
+	      f.puts "#{time},#{cpu_usage},#{proc_io[0]},#{proc_io[1]},#{proc_io[2]},#{proc_io[3]},#{rss},#{cache},#{writeback}"
         end
 	  end
 	  
@@ -97,6 +98,7 @@ def benchmark
   iostat_thread.exit if io_on
   vmstat_thread.exit if vm_on
   puts "Benchmarking complete."
+  `pkill vmstat`
   system("pkill vmstat") # vmstat is long running need to kill it.
 end
 
@@ -113,7 +115,7 @@ end
 # Start a VMstat monitoring thread.
 def vmstat(test_run)
   Thread.new {
-    f.puts `vmstat -n 1 | awk 'BEGIN { FS=" "; OFS="," } {$1=$1; print}' > tests/#{test_run}/vmstat.csv`
+    `vmstat -n 1 | awk 'BEGIN { FS=" "; OFS="," } {$1=$1; print}' > tests/#{test_run}/vmstat.csv`
   }
 end
 
