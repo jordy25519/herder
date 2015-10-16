@@ -101,7 +101,7 @@ def benchmark
 end
 
 # Pause bencmarking execution until container logs specified event.
-private def log_tag(id, tag)
+def log_tag(id, tag)
   # Block until "Create Command registry" event.
   puts "Waiting for command registry"
   container = Docker::Container.get(id)
@@ -111,18 +111,14 @@ private def log_tag(id, tag)
 end
 
 # Start a VMstat monitoring thread.
-private def vmstat(test_run)
+def vmstat(test_run)
   Thread.new {
-    while true
-	  File.open("tests/#{test_run}/vmstat.csv","a") do |f|	  
-	    f.puts `vmstat -n 1 | awk 'BEGIN { FS=" "; OFS="," } {$1=$1; print}'`
-	  end
- 	end
+    f.puts `vmstat -n 1 | awk 'BEGIN { FS=" "; OFS="," } {$1=$1; print}' > tests/#{test_run}/vmstat.csv`
   }
 end
 
 # Start an IO monitoring thread for /dev/sda disk.
-private def iostat(test_run)
+def iostat(test_run)
   Thread.new {
     intial_values = IO.read("/sys/block/sda/stat").chomp.split.map &:to_i
     while true
