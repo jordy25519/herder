@@ -43,10 +43,10 @@ def benchmark
     create
     herd_name = herd_name + "s"
   else
-   unless @herds[herd_name]
-		puts "No herd exists with name: '#{herd_name}'"
-		return
-	 end
+    unless @herds[herd_name]
+      puts "No herd exists with name: '#{herd_name}'"
+      return
+    end
   end
   
   # Create directory for test run.
@@ -57,8 +57,8 @@ def benchmark
   @start_time = Time.now
 
   # Start vm and io monitoring threads.
-  vmstat_thread = vmstat() if vm_on
-  iostat_thread = iostat() if io_on
+  vmstat_thread = vmstat(run) if vm_on
+  iostat_thread = iostat(run) if io_on
 
   # Begin threads for container stat collection.
   @herds[herd_name]["ids"].each_with_index do |id, n|
@@ -111,25 +111,25 @@ private def log_tag(id, tag)
 end
 
 # Start a VMstat monitoring thread.
-private def vmstat
+private def vmstat(test_run)
   Thread.new {
     while true
-	  File.open("tests/#{run}/vmstat.csv","a") do |f|	  
-	    `vmstat -n 1 | awk 'BEGIN { FS=" "; OFS="," } {$1=$1; print}'`
+	  File.open("tests/#{test_run}/vmstat.csv","a") do |f|	  
+	    f.puts `vmstat -n 1 | awk 'BEGIN { FS=" "; OFS="," } {$1=$1; print}'`
 	  end
  	end
   }
 end
 
 # Start an IO monitoring thread for /dev/sda disk.
-private def iostat
+private def iostat(test_run)
   Thread.new {
     intial_values = IO.read("/sys/block/sda/stat").chomp.split.map &:to_i
     while true
       current_values = IO.read("/sys/block/sda/stat").chomp.split.map &:to_i
 	  counters = intial_values.each_with_index.map{ |e, i | current_values[i] - e }
 	  counters = counters.join(",")
-	  File.open("tests/#{run}/iorate.csv", "a") do |f|
+	  File.open("tests/#{test_run}/iorate.csv", "a") do |f|
 	    # Write headerline on first run.
     	f.puts "rio,rmerge,rsect,rtick,wio,wmerge,wsect,wtick,running,active,wait" if f.size == 0
 		f.puts counters
@@ -170,7 +170,7 @@ def create
 end
 
 # Run a command against a herd.
-def run
+def rund
 	herd_name = ARGV[1]
 	cmd = "docker " << ARGV[2]
 	args = ARGV.drop(3).join(" ")

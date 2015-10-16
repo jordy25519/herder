@@ -6,11 +6,11 @@ require 'fileutils'
 @image_name = "aviarc-tagged"
 
 def test(test_name, test_index)
- n = 19
+ n = 1
  puts "textindex" + test_index.to_s
- #FileUtils.mkdir("tests/#{test_name}#{test_index}")
+ FileUtils.mkdir("tests/#{test_name}#{test_index}")
  while(n < @upper)
-  `./herder --bench #{@image_name} #{n}`
+  `./herder --bench #{@image_name} #{n} -lt`
   dur = []
   fin = []
   FileUtils.mv("tests/#{@image_name}s#{n}", "tests/#{test_name}#{test_index}/")
@@ -39,7 +39,7 @@ end
 @tests.times do |t|
  test(@group, t)
  puts "Test #{t} complete"
- sleep 30
+ sleep 10
 end
 
 puts "Calculating Averages..."
@@ -57,24 +57,20 @@ puts "Calculating Averages..."
   end
   
   avg = Hash.new
-  avg["mean_complete"] = []
   avg["first_complete"] = []
   avg["last_complete"] = []
-  avg["duration"] = []
   
   # Group averages from each group.
   @tests.times do |t|
    avg["last_complete"] << stats[t][-1]
    avg["first_complete"] << stats[t][-2]
-   avg["mean_complete"] << stats[t][-3]
-   avg["duration"] << stats[t][-4]  
   end
   # Consolidate final averages.
   final_averages = avg.map { |k, v| v.reduce(:+) / v.size }
  
   # Write averages to file.
   File.open("tests/#{@group}#{i}.txt", "w") do |f|
-   f.puts "mean complete, first complete, last complete, duration"
+   f.puts "first complete, last complete"
    f.puts final_averages.to_s
   end
 end
