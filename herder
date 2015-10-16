@@ -122,9 +122,9 @@ end
 # Start an IO monitoring thread for /dev/sda disk.
 def iostat(test_run)
   Thread.new {
-    intial_values = IO.read("/sys/block/sda/stat").chomp.split.map &:to_i
+    intial_values = IO.read("/sys/block/xvda/stat").chomp.split.map &:to_i
     while true
-      current_values = IO.read("/sys/block/sda/stat").chomp.split.map &:to_i
+      current_values = IO.read("/sys/block/xvda/stat").chomp.split.map &:to_i
 	  counters = intial_values.each_with_index.map{ |e, i | current_values[i] - e }
 	  counters = counters.join(",")
 	  File.open("tests/#{test_run}/iorate.csv", "a") do |f|
